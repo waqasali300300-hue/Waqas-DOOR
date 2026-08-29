@@ -84,6 +84,11 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
 .stat-card.orange .num{color:#c2670e;}
 .stat-card.purple .num{color:#7c3aed;}
 .stat-card.teal .num{color:#0d8a7c;}
+.stat-card .stat-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;margin:0 auto 6px;background:linear-gradient(135deg,var(--sic1,var(--accent)),var(--sic2,var(--accent-light)));box-shadow:0 4px 10px -2px var(--sic1,var(--accent));}
+.mini-stat-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.mini-stat-strip .mini-stat-item{text-align:center;padding:8px 2px;background:var(--gray-50);border-radius:10px;}
+.mini-stat-strip .mini-stat-num{font-family:var(--font-mono);font-size:14px;font-weight:800;}
+.mini-stat-strip .mini-stat-lbl{font-size:7px;color:var(--gray-500);margin-top:2px;}
 .tab-bar{display:flex;gap:3px;background:var(--card);border-radius:var(--radius-lg);padding:5px;border:1px solid var(--border);margin-bottom:10px;flex-wrap:wrap;box-shadow:var(--shadow);}
 .menu-btn{font-size:16px;padding:6px 10px;}
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);z-index:400;display:none;}
@@ -311,6 +316,7 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
     <div class="fb-step"><strong>Step 1:</strong> <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Add project → hk-wood-doors</div>
     <div class="fb-step"><strong>Step 2:</strong> Web app → Register → Config copy karo</div>
     <div class="fb-step"><strong>Step 3:</strong> Firestore Database → Create → Test mode</div>
+    <div class="fb-step"><strong>Step 4 (zaroori):</strong> Firestore → Rules tab → sab likha hua mita kar yeh likhein: <code style="font-size:8px;">allow read, write: if true;</code> (andar wali line) → Publish. <em>Warna 30 din baad Test Mode khud band ho jata hai aur sync rukk jata hai.</em></div>
     <input class="fb-input" id="fb_apiKey" placeholder="apiKey: AIzaSy...">
     <input class="fb-input" id="fb_authDomain" placeholder="authDomain: your-app.firebaseapp.com">
     <input class="fb-input" id="fb_projectId" placeholder="projectId: hk-wood-doors">
@@ -396,6 +402,8 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
       <div class="hero-pulse" id="heroPulse">Loading...</div>
     </div>
     <div class="stats" id="statsArea"></div>
+    <div class="card"><div class="card-head">📈 Sales Overview <span style="font-weight:400;font-size:8px;color:var(--gray-500);">This Month</span></div><div class="card-body" id="salesOverviewChart"></div></div>
+    <div class="card"><div class="card-head">🎯 Production Status</div><div class="card-body" id="productionDonut"></div></div>
     <div class="card"><div class="card-head">⚡ Quick Actions</div><div class="card-body">
       <div class="quick-actions-grid">
         <div class="qa-btn" style="--qa-c:#2563eb;" onclick="openPartyModal()"><div class="qa-icon">👤➕</div><div class="qa-label">Add Party</div></div>
@@ -406,13 +414,11 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
         <div class="qa-btn" style="--qa-c:#dc2626;" onclick="switchTab('tabProduction')"><div class="qa-icon">🏭</div><div class="qa-label">Production</div></div>
       </div>
     </div></div>
+    <div class="card"><div class="card-head">🏆 Top Door Designs</div><div class="card-body" id="topDesignsArea"></div></div>
     <div class="card"><div class="card-head">📅 Aaj Ka Khulasa (Today's Summary)</div><div class="card-body"><div class="stats" id="todaySummaryArea" style="margin-bottom:0;"></div></div></div>
     <div class="card"><div class="card-head">🧭 Dashboard Menu</div><div class="card-body"><div id="dashboardMenuGrid"></div></div></div>
     <div class="card"><div class="card-head">🕒 Recent Activities</div><div class="card-body" id="recentActivitiesArea"></div></div>
-    <div class="row-2">
-      <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">📊 Monthly Revenue</div><div id="revenueChart"></div></div>
-      <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">📊 Order Status</div><div id="statusChart"></div></div>
-    </div>
+    <div class="card"><div class="card-body mini-stat-strip" id="miniStatsStrip"></div></div>
     <div class="row-2">
       <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">🏆 Top Parties (Revenue)</div><div id="topPartiesChart"></div></div>
       <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">🔧 Karigar-wise Labour Cost</div><div id="karigarCostChart"></div></div>
@@ -691,8 +697,21 @@ function saveFirebaseConfig(){let cfg={apiKey:document.getElementById('fb_apiKey
 function skipFirebaseSetup(){document.getElementById('fbSetupOverlay').classList.remove('open');}
 function openFbSetup(){let cfg=getFirebaseCfg();if(cfg){document.getElementById('fb_apiKey').value=cfg.apiKey||'';document.getElementById('fb_authDomain').value=cfg.authDomain||'';document.getElementById('fb_projectId').value=cfg.projectId||'';document.getElementById('fb_appId').value=cfg.appId||'';}document.getElementById('fbSetupOverlay').classList.add('open');}
 function setSyncStatus(s){let dot=document.getElementById('syncDot'),txt=document.getElementById('syncText');if(!dot||!txt)return;dot.className='sync-dot';if(s==='online'){txt.textContent='☁️ Synced';}else if(s==='syncing'){dot.classList.add('syncing');txt.textContent='⟳ Syncing...';}else if(s==='error'){dot.classList.add('error');txt.textContent='📴 Offline';}else{txt.textContent='💾 Local';}}
-async function cloudSave(){if(!cloudEnabled||!db)return;setSyncStatus('syncing');try{await db.collection('erp').doc(CLOUD_USER_ID).set({...getDataSnapshot(),savedAt:firebase.firestore.FieldValue.serverTimestamp()});setSyncStatus('online');}catch(e){setSyncStatus('error');}}
-async function cloudLoad(){if(!cloudEnabled||!db)return false;setSyncStatus('syncing');try{let snap=await db.collection('erp').doc(CLOUD_USER_ID).get();if(snap.exists){applyData(snap.data());setSyncStatus('online');return true;}setSyncStatus('online');return false;}catch(e){setSyncStatus('error');return false;}}
+async function cloudSave(){if(!cloudEnabled||!db)return;setSyncStatus('syncing');try{await db.collection('erp').doc(CLOUD_USER_ID).set({...getCloudSnapshot(),savedAt:firebase.firestore.FieldValue.serverTimestamp()});setSyncStatus('online');}catch(e){setSyncStatus('error');}}
+function getCloudSnapshot(){
+  // Firestore caps each document at 1MB. Design reference photos (base64) can push
+  // the combined data past that, which would silently break cloud sync. They stay
+  // fully saved on-device (local backup + manual JSON export both keep them) — only
+  // the cloud copy omits them.
+  let snap=getDataSnapshot();
+  snap.orders=(snap.orders||[]).map(o=>{
+    if(!o.designPhoto)return o;
+    let {designPhoto,...rest}=o;
+    return rest;
+  });
+  return snap;
+}
+async function cloudLoad(){if(!cloudEnabled||!db)return false;setSyncStatus('syncing');try{let snap=await db.collection('erp').doc(CLOUD_USER_ID).get();if(snap.exists){let photoMap={};orders.forEach(o=>{if(o.designPhoto)photoMap[o.id]=o.designPhoto;});applyData(snap.data());orders.forEach(o=>{if(!o.designPhoto&&photoMap[o.id])o.designPhoto=photoMap[o.id];});saveLocal();setSyncStatus('online');return true;}setSyncStatus('online');return false;}catch(e){setSyncStatus('error');return false;}}
 async function manualSync(){if(!cloudEnabled){showToast('⚠️ Firebase nahi');return;}showToast('⟳ Sync...');let ok=await cloudLoad();if(ok){updateKhataFilter();renderAll();showToast('✅ Sync ho gaya!');}else showToast('⚠️ Cloud data nahi mila');}
 
 function tryInitFirebaseOnLoad(attemptsLeft){
@@ -2067,7 +2086,13 @@ function renderRecentActivities(){
 
 function renderDashboard(){
   let now=new Date();
-  document.getElementById('heroDate').textContent=now.toLocaleDateString('en-PK',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  let hr=now.getHours();
+  let greetWord=hr<12?'Good Morning':hr<17?'Good Afternoon':'Good Evening';
+  let activeStaffName=activeUserId?staffUsers.find(u=>u.id===activeUserId)?.name:null;
+  let displayName=activeStaffName||businessProfile.ownerName||businessProfile.name||'';
+  document.getElementById('heroGreet').textContent=now.toLocaleDateString('en-PK',{weekday:'short',day:'numeric',month:'short'}).toUpperCase();
+  document.getElementById('heroName').textContent=(displayName?`${greetWord}, ${displayName}`:greetWord)+' 👋';
+  document.getElementById('heroDate').textContent='Aaj ka business ka haal yeh raha:';
   let totalOrders=orders.length,totalRevenue=orders.reduce((s,o)=>s+o.orderTotal,0);
   let totalPaid=orders.reduce((s,o)=>s+getOrderTotalPaid(o),0);
   let totalBalance=totalRevenue-totalPaid;
@@ -2093,12 +2118,12 @@ function renderDashboard(){
   let profitTrend=trendBadge(thisMonthOrders.reduce((s,o)=>s+(o.netProfit||0),0),lastMonthOrders.reduce((s,o)=>s+(o.netProfit||0),0));
 
   document.getElementById('statsArea').innerHTML=`
-    <div class="stat-card gold"><div class="num">${fmtRs(totalRevenue)}</div><div class="lbl">Revenue</div>${revTrend}</div>
-    <div class="stat-card green"><div class="num">${fmtRs(totalPaid)}</div><div class="lbl">Received</div></div>
-    <div class="stat-card red"><div class="num">${fmtRs(totalBalance)}</div><div class="lbl">Balance</div></div>
-    <div class="stat-card blue"><div class="num">${totalOrders}</div><div class="lbl">Orders</div>${ordersTrend}</div>
-    <div class="stat-card orange"><div class="num">${totalWood.toFixed(1)}</div><div class="lbl">Wood (cft)</div></div>
-    <div class="stat-card teal"><div class="num">${fmtRs(totalProfit)}</div><div class="lbl">Net Profit</div>${profitTrend}</div>
+    <div class="stat-card gold"><div class="stat-icon" style="--sic1:#c8963e;--sic2:#e8c777;">💰</div><div class="num">${fmtRs(totalRevenue)}</div><div class="lbl">Revenue</div>${revTrend}</div>
+    <div class="stat-card green"><div class="stat-icon" style="--sic1:#16a34a;--sic2:#4ade80;">✅</div><div class="num">${fmtRs(totalPaid)}</div><div class="lbl">Received</div></div>
+    <div class="stat-card red"><div class="stat-icon" style="--sic1:#dc2626;--sic2:#f87171;">⏳</div><div class="num">${fmtRs(totalBalance)}</div><div class="lbl">Balance</div></div>
+    <div class="stat-card blue"><div class="stat-icon" style="--sic1:#2563eb;--sic2:#60a5fa;">📋</div><div class="num">${totalOrders}</div><div class="lbl">Orders</div>${ordersTrend}</div>
+    <div class="stat-card orange"><div class="stat-icon" style="--sic1:#d97706;--sic2:#fbbf24;">🪵</div><div class="num">${totalWood.toFixed(1)}</div><div class="lbl">Wood (cft)</div></div>
+    <div class="stat-card teal"><div class="stat-icon" style="--sic1:#0d9488;--sic2:#5eead4;">💎</div><div class="num">${fmtRs(totalProfit)}</div><div class="lbl">Net Profit</div>${profitTrend}</div>
   `;
 
   let today=now.toISOString().slice(0,10);
@@ -2116,8 +2141,10 @@ function renderDashboard(){
   renderDashboardMenu();
 
   // Charts
-  renderRevenueChart();
-  renderStatusChart();
+  renderSalesOverviewChart();
+  renderProductionDonut();
+  renderTopDesigns();
+  renderMiniStatsStrip();
   renderTopPartiesChart();
   renderKarigarCostChart();
   renderWoodUsageChart();
@@ -2158,6 +2185,111 @@ function renderDashboard(){
   `).join(''):'<div class="empty-state"><p>No orders yet</p></div>';
 }
 
+function renderSalesOverviewChart(){
+  let el=document.getElementById('salesOverviewChart');
+  if(!el)return;
+  let now=new Date();
+  let year=now.getFullYear(),month=now.getMonth(),daysElapsed=now.getDate();
+  let dayTotals={};
+  orders.forEach(o=>{
+    let d=new Date(o.date+'T00:00:00');
+    if(d.getFullYear()===year&&d.getMonth()===month)dayTotals[d.getDate()]=(dayTotals[d.getDate()]||0)+o.orderTotal;
+  });
+  let days=[];for(let i=1;i<=daysElapsed;i++)days.push(i);
+  let values=days.map(d=>dayTotals[d]||0);
+  if(!values.some(v=>v>0)){el.innerHTML='<div class="empty-state" style="padding:20px 0;"><p>Is mahine abhi tak koi order nahi</p></div>';return;}
+  let max=Math.max(...values,1);
+  let W=600,H=170,padL=4,padR=4,padT=14,padB=6;
+  let plotW=W-padL-padR,plotH=H-padT-padB;
+  let stepX=days.length>1?plotW/(days.length-1):0;
+  let pts=values.map((v,i)=>({x:padL+i*stepX,y:padT+plotH-(v/max*plotH)}));
+  let linePath=pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+  let areaPath=linePath+` L${pts[pts.length-1].x.toFixed(1)},${(padT+plotH).toFixed(1)} L${pts[0].x.toFixed(1)},${(padT+plotH).toFixed(1)} Z`;
+  let peakIdx=values.indexOf(max),peak=pts[peakIdx];
+  let mon=now.toLocaleDateString('en',{month:'short'});
+  el.innerHTML=`
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:140px;overflow:visible;display:block;">
+      <defs><linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--gold)" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="var(--gold)" stop-opacity="0"/>
+      </linearGradient></defs>
+      <path d="${areaPath}" fill="url(#salesGrad)" stroke="none"/>
+      <path d="${linePath}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${peak.x.toFixed(1)}" cy="${peak.y.toFixed(1)}" r="4" fill="var(--gold)" stroke="var(--card)" stroke-width="2"/>
+    </svg>
+    <div style="display:flex;justify-content:space-between;font-size:7px;color:var(--gray-500);margin-top:4px;">
+      <span>1 ${mon}</span>
+      <span style="font-weight:700;color:var(--gold);">Peak: ${days[peakIdx]} ${mon} · ${fmtRs(max)}</span>
+      <span>${days[days.length-1]} ${mon}</span>
+    </div>`;
+}
+function renderProductionDonut(){
+  let el=document.getElementById('productionDonut');
+  if(!el)return;
+  let total=orders.length;
+  let completed=orders.filter(o=>['ready','delivered'].includes(o.status||'pending')).length;
+  let inProgress=orders.filter(o=>['cutting','assembly','polishing'].includes(o.status||'pending')).length;
+  let pending=orders.filter(o=>(o.status||'pending')==='pending').length;
+  let pct=total?Math.round(completed/total*100):0;
+  let R=54,C=2*Math.PI*R,dash=C*pct/100;
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div style="position:relative;width:130px;height:130px;flex-shrink:0;margin:0 auto;">
+        <svg viewBox="0 0 130 130" style="width:130px;height:130px;transform:rotate(-90deg);">
+          <circle cx="65" cy="65" r="${R}" fill="none" stroke="var(--border)" stroke-width="12"/>
+          <circle cx="65" cy="65" r="${R}" fill="none" stroke="var(--green-700)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${C.toFixed(1)}"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--green-700);">${pct}%</div>
+          <div style="font-size:7px;color:var(--gray-500);text-transform:uppercase;font-weight:700;">Completed</div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:130px;display:flex;flex-direction:column;gap:7px;">
+        <div style="display:flex;justify-content:space-between;font-size:9px;"><span>🔵 Total Orders</span><strong>${total}</strong></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;"><span>🟠 In Progress</span><strong>${inProgress}</strong></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;"><span>🟢 Completed</span><strong>${completed}</strong></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;"><span>🔴 Pending</span><strong>${pending}</strong></div>
+      </div>
+    </div>`;
+}
+function getTopDoorDesigns(limit){
+  let totals={},grandTotal=0;
+  orders.forEach(o=>(o.doors||[]).forEach(d=>{
+    let amt=parseFloat(d.doorAmount)||0;
+    if(!amt)return;
+    let matched=doorDesigns.find(dz=>d.size&&d.size.includes(dz));
+    let key=matched||'Custom / Other';
+    if(!totals[key])totals[key]={revenue:0,qty:0};
+    totals[key].revenue+=amt;totals[key].qty+=parseFloat(d.qty)||0;grandTotal+=amt;
+  }));
+  return{entries:Object.entries(totals).sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,limit),grandTotal};
+}
+function renderTopDesigns(){
+  let el=document.getElementById('topDesignsArea');
+  if(!el)return;
+  let{entries,grandTotal}=getTopDoorDesigns(5);
+  if(!entries.length){el.innerHTML='<div class="empty-state"><p>Abhi koi door data nahi</p></div>';return;}
+  let max=Math.max(...entries.map(e=>e[1].revenue),1);
+  el.innerHTML=entries.map(([name,v])=>{
+    let pct=grandTotal?Math.round(v.revenue/grandTotal*100):0;
+    let barPct=Math.max(4,v.revenue/max*100);
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:3px;"><span style="font-weight:700;">🚪 ${esc(name)}</span><span style="font-weight:700;">${fmtRs(v.revenue)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:7px;color:var(--gray-500);margin-bottom:3px;"><span>${v.qty} doors</span><span>${pct}%</span></div>
+      <div style="height:6px;background:var(--gray-100);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${barPct}%;background:linear-gradient(90deg,var(--gold),var(--accent-light));border-radius:4px;"></div></div>
+    </div>`;
+  }).join('');
+}
+function renderMiniStatsStrip(){
+  let el=document.getElementById('miniStatsStrip');
+  if(!el)return;
+  el.innerHTML=`
+    <div class="mini-stat-item"><div class="mini-stat-num">${parties.length}</div><div class="mini-stat-lbl">👥 Parties</div></div>
+    <div class="mini-stat-item"><div class="mini-stat-num">${karigars.length}</div><div class="mini-stat-lbl">🔨 Karigar</div></div>
+    <div class="mini-stat-item"><div class="mini-stat-num">${doorDesigns.length}</div><div class="mini-stat-lbl">🚪 Designs</div></div>
+    <div class="mini-stat-item"><div class="mini-stat-num">${woodTypes.length}</div><div class="mini-stat-lbl">🪵 Wood Types</div></div>
+  `;
+}
 function renderRevenueChart(){
   let el=document.getElementById('revenueChart');
   if(!el)return;
