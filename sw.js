@@ -18,6 +18,8 @@ const APP_SHELL = [
   './js/security.js',
   './js/extras.js',
   './js/activity.js',
+  './js/reports.js',
+  './vendor/xlsx.mini.min.js',
   './vendor/firebase-app-compat.js',
   './vendor/firebase-firestore-compat.js',
   './vendor/firebase-auth-compat.js',
