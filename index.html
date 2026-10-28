@@ -61,7 +61,6 @@
     </div>
     <div class="header-right">
       <button class="hdr-btn" onclick="openSearchModal()">🔍</button>
-      <button class="hdr-btn" onclick="openSettingsModal()">⚙️</button>
       <button class="hdr-btn gold" onclick="openOrderModal()">+ Order</button>
     </div>
   </div>
@@ -91,6 +90,7 @@
     <button class="drawer-item" data-tab="tabSuppliers"><span class="t-icon">🏪</span>Suppliers</button>
     <button class="drawer-item" data-tab="tabExpenses"><span class="t-icon">💰</span>Kharcha / Expenses</button>
     <button class="drawer-item" data-tab="tabBankBook"><span class="t-icon">🏦</span>Bank / Cash Book</button>
+    <button class="drawer-item" onclick="openChequeListModal();closeDrawer();"><span class="t-icon">🧾</span>Cheques</button>
     <button class="drawer-item" data-tab="tabReports"><span class="t-icon">📊</span>Reports</button>
     <button class="drawer-item" data-tab="tabRecycle"><span class="t-icon">♻️</span>Recycle Bin</button>
     <div class="drawer-section-label">🛠️ Tools</div>
@@ -100,11 +100,14 @@
     <button class="drawer-item" onclick="openAttendanceModal();closeDrawer();"><span class="t-icon">🗓️</span>Karigar Attendance</button>
     <button class="drawer-item" onclick="openWoodStockModal();closeDrawer();"><span class="t-icon">🪵</span>Wood Stock</button>
     <button class="drawer-item" onclick="openPriceListModal();closeDrawer();"><span class="t-icon">📃</span>Rate / Price List</button>
+    <button class="drawer-item" onclick="openRawMaterialCalcModal();closeDrawer();"><span class="t-icon">📐</span>Material Calculator</button>
+    <button class="drawer-item" onclick="openBusinessCardModal();closeDrawer();"><span class="t-icon">🪪</span>Business Card</button>
     <button class="drawer-item" onclick="openReminderCenter();closeDrawer();"><span class="t-icon">🔔</span>Payment Reminders</button>
     <div class="drawer-section-label">⚙️ App</div>
     <button class="drawer-item" onclick="openUserSwitcher();closeDrawer();"><span class="t-icon">🧑‍💼</span>Staff / Users</button>
     <button class="drawer-item" onclick="openFbSetup();closeDrawer();"><span class="t-icon">🔥</span>Cloud Backup Setup</button>
     <button class="drawer-item" onclick="openSettingsModal();closeDrawer();"><span class="t-icon">⚙️</span>Settings</button>
+    <button class="drawer-item" onclick="toggleDarkMode();closeDrawer();"><span class="t-icon">🌓</span>Dark / Light Mode</button>
   </div>
   <div class="drawer-footer" id="drawerFooter" onclick="openUserSwitcher();closeDrawer();" style="cursor:pointer;"></div>
 </div>
@@ -113,43 +116,40 @@
 
   <!-- HOME -->
   <div id="tabHome" class="tab active">
-    <div class="hero-card" id="heroCard">
-      <div class="hero-top">
-        <div>
-          <div class="hero-greet" id="heroGreet">Assalam-o-Alaikum</div>
-          <div class="hero-name" id="heroName">HK Wood Doors</div>
-          <div class="hero-date" id="heroDate"></div>
-        </div>
-        <div style="font-size:26px;">🚪</div>
-      </div>
-      <div class="hero-pulse" id="heroPulse">Loading...</div>
+    <div class="hm-head">
+      <div><div class="hm-date" id="hmDate"></div><div class="hm-title" id="hmTitle">Dashboard</div></div>
+      <div class="hm-user" id="hmUser"></div>
     </div>
-    <div class="stats" id="statsArea"></div>
-    <div class="card"><div class="card-head">📈 Sales Overview <span style="font-weight:400;font-size:8px;color:var(--gray-500);">This Month</span></div><div class="card-body" id="salesOverviewChart"></div></div>
-    <div class="card"><div class="card-head">🎯 Production Status</div><div class="card-body" id="productionDonut"></div></div>
-    <div class="card"><div class="card-head">⚡ Quick Actions</div><div class="card-body">
-      <div class="quick-actions-grid">
-        <div class="qa-btn" style="--qa-c:#2563eb;" onclick="openPartyModal()"><div class="qa-icon">👤➕</div><div class="qa-label">Add Party</div></div>
-        <div class="qa-btn" style="--qa-c:#16a34a;" onclick="openOrderModal()"><div class="qa-icon">🛒</div><div class="qa-label">New Order</div></div>
-        <div class="qa-btn" style="--qa-c:#7c3aed;" onclick="quickCreateInvoice()"><div class="qa-icon">📄</div><div class="qa-label">Create Invoice</div></div>
-        <div class="qa-btn" style="--qa-c:#c8963e;" onclick="quickAddPayment()"><div class="qa-icon">💳</div><div class="qa-label">Add Payment</div></div>
-        <div class="qa-btn" style="--qa-c:#0d9488;" onclick="openWoodStockModal()"><div class="qa-icon">📦</div><div class="qa-label">Stock Entry</div></div>
-        <div class="qa-btn" style="--qa-c:#dc2626;" onclick="switchTab('tabProduction')"><div class="qa-icon">🏭</div><div class="qa-label">Production</div></div>
-      </div>
-    </div></div>
-    <div class="card"><div class="card-head">🏆 Top Door Designs</div><div class="card-body" id="topDesignsArea"></div></div>
-    <div class="card"><div class="card-head">📅 Aaj Ka Khulasa (Today's Summary)</div><div class="card-body"><div class="stats" id="todaySummaryArea" style="margin-bottom:0;"></div></div></div>
-    <div class="card"><div class="card-head">🧭 Dashboard Menu</div><div class="card-body"><div id="dashboardMenuGrid"></div></div></div>
-    <div class="card"><div class="card-head">🕒 Recent Activities</div><div class="card-body" id="recentActivitiesArea"></div></div>
-    <div class="card"><div class="card-body mini-stat-strip" id="miniStatsStrip"></div></div>
-    <div class="row-2">
-      <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">🏆 Top Parties (Revenue)</div><div id="topPartiesChart"></div></div>
-      <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">🔧 Karigar-wise Labour Cost</div><div id="karigarCostChart"></div></div>
+    <div class="hm-kpis" id="hmKpis"></div>
+    <div class="hm-actions">
+      <button class="hm-act" onclick="quickAddPayment()"><span>💳</span>Payment</button>
+      <button class="hm-act" onclick="openExpenseModal()"><span>🧾</span>Kharcha</button>
+      <button class="hm-act" onclick="closeModal('quotationListModal');openQuotationModal()"><span>📝</span>Estimate</button>
+      <button class="hm-act" onclick="openPartyModal()"><span>👤</span>Party</button>
     </div>
-    <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">🪵 Wood Usage (CFT)</div><div id="woodUsageChart"></div></div>
-    <div class="card"><div class="card-head">⚠️ Low Stock</div><div class="card-body" id="lowStockAlerts"></div></div>
-    <div class="card"><div class="card-head">🔧 Karigar Dues</div><div class="card-body" id="karigarDues"></div></div>
-    <div class="card"><div class="card-head">📌 Recent Orders</div><div class="card-body" id="recentOrders"></div></div>
+    <div class="hm-card"><div class="hm-card-head">Tawajjo chahiye</div><div id="hmAttention"></div></div>
+    <div class="hm-card"><div class="hm-card-head">Production <button class="hm-link" onclick="switchTab('tabProduction')">Sab dekhein ›</button></div><div id="hmPipeline"></div></div>
+    <div class="hm-card"><div class="hm-card-head">Aamdani vs Kharcha <span class="hm-sub">6 mahine</span></div><div id="hkCashflowChart"></div></div>
+    <div class="hm-card"><div class="hm-card-head">Naye Orders <button class="hm-link" onclick="switchTab('tabOrders')">Sab orders ›</button></div><div id="recentOrders"></div></div>
+    <details class="hm-more" id="hmMore">
+      <summary>Mazeed reports aur charts</summary>
+      <div class="card"><div class="card-head">Is mahine ki sale</div><div class="card-body" id="salesOverviewChart"></div></div>
+      <div class="card"><div class="card-head">Aaj ka khulasa</div><div class="card-body"><div class="stats" id="todaySummaryArea" style="margin-bottom:0;"></div></div></div>
+      <div class="card"><div class="card-head">Production status</div><div class="card-body" id="productionDonut"></div></div>
+      <div class="card"><div class="card-head">Top door designs</div><div class="card-body" id="topDesignsArea"></div></div>
+      <div class="card"><div class="card-head">Recent activities</div><div class="card-body" id="recentActivitiesArea"></div></div>
+      <div class="card"><div class="card-body mini-stat-strip" id="miniStatsStrip"></div></div>
+      <div class="row-2">
+        <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">Top parties (revenue)</div><div id="topPartiesChart"></div></div>
+        <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">Karigar-wise labour</div><div id="karigarCostChart"></div></div>
+      </div>
+      <div class="chart-container"><div style="font-size:9px;font-weight:700;margin-bottom:4px;">Wood usage (CFT)</div><div id="woodUsageChart"></div></div>
+    </details>
+    <!-- Filled by the older dashboard code; not shown (the cards above replace them). -->
+    <div hidden>
+      <div id="heroGreet"></div><div id="heroName"></div><div id="heroDate"></div><div id="heroPulse"></div>
+      <div id="statsArea"></div><div id="dashboardMenuGrid"></div><div id="lowStockAlerts"></div><div id="karigarDues"></div>
+    </div>
   </div>
 
   <!-- ORDERS -->
@@ -277,7 +277,6 @@
 </div>
 
 <div class="toast" id="toastMsg"></div>
-<div class="theme-toggle" onclick="toggleDarkMode()">🌓</div>
 <div class="pdf-loading" id="pdfLoading"><div class="pdf-spinner"></div><div style="font-size:11px;font-weight:600;">📄 PDF Ban Raha Hai...</div></div>
 
 <div class="bottom-nav">
@@ -368,5 +367,8 @@
 <script src="js/app.js"></script>
 <script src="js/security.js"></script>
 <script src="js/extras.js"></script>
+<script src="js/activity.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/home.js"></script>
 </body>
 </html>

@@ -10,7 +10,7 @@
     'deleteOrder','deleteParty','deletePartyPayment','deletePayment','deletePriceListEntry','deletePurchase',
     'deleteQuotation','deleteReceivedPayment','deleteSupplier','deleteTemplate','deleteUser','addStaffUser',
     'emptyRecycleBin','resetAllData','resetAllWoodStock','resetWoodType','removeWoodType','importBackup',
-    'saveSettings','saveFirebaseConfig','fbLogout','restoreAutoBackup'
+    'saveSettings','saveFirebaseConfig','fbLogout','restoreAutoBackup','openActivityLog','openProfitReport','exportExcel'
   ];
 
   function ownerPin(){return (businessProfile&&businessProfile.ownerPin)||'';}

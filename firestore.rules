@@ -4,7 +4,7 @@ rules_version = '2';
 // Add more emails to the list for other phones/staff with their own login.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /erp/{doc} {
+    match /{document=**} {
       allow read, write: if request.auth != null
         && request.auth.token.email in ['aap@gmail.com'];
     }
