@@ -56,15 +56,115 @@ const DASHBOARD_SECTIONS = [
 const DASHBOARD_MENU = DASHBOARD_SECTIONS.flatMap(s=>s.items);
 
 // ─── FIREBASE ───
-let db=null,cloudEnabled=false;
+// Cloud copy lives in one Firestore document. Syncing merges record-by-record
+// (see js/sync.js) so entries made on two phones at the same time are both kept.
+// With an email set in Cloud Setup the app signs in first, so the database can be
+// locked to that email (see firestore.rules) instead of being open to anyone.
+let db=null,cloudEnabled=false,fbAuthUser=null;
 const CLOUD_USER_ID='hk_main_user';
-function initFirebase(){try{let cfg=getFirebaseCfg();if(!cfg)return false;if(typeof firebase==='undefined')return false;if(!firebase.apps||!firebase.apps.length)firebase.initializeApp(cfg);db=firebase.firestore();cloudEnabled=true;setSyncStatus('online');return true;}catch(e){cloudEnabled=false;setSyncStatus('error');return false;}}
+let _syncBase=null,_syncBaseLoaded=false,_syncRunning=false,_syncAgain=false,_cloudDirty=false,_cloudUnsub=null;
+
 function getFirebaseCfg(){try{return JSON.parse(localStorage.getItem('ww_fb_cfg')||'null');}catch(e){return null;}}
-function saveFirebaseConfig(){let cfg={apiKey:document.getElementById('fb_apiKey').value.trim(),authDomain:document.getElementById('fb_authDomain').value.trim(),projectId:document.getElementById('fb_projectId').value.trim(),appId:document.getElementById('fb_appId').value.trim()};if(!cfg.apiKey||!cfg.projectId){showToast('⚠️ API Key zaruri');return;}localStorage.setItem('ww_fb_cfg',JSON.stringify(cfg));document.getElementById('fbSetupOverlay').classList.remove('open');showToast('✅ Saved! Reload...');setTimeout(()=>location.reload(),1200);}
+function cloudDocRef(){return db.collection('erp').doc(CLOUD_USER_ID);}
+
+function initFirebase(){
+  try{
+    let cfg=getFirebaseCfg();if(!cfg)return false;
+    if(typeof firebase==='undefined')return false;
+    if(!firebase.apps||!firebase.apps.length)firebase.initializeApp({apiKey:cfg.apiKey,authDomain:cfg.authDomain,projectId:cfg.projectId,appId:cfg.appId});
+    db=firebase.firestore();
+    return true;
+  }catch(e){cloudEnabled=false;setSyncStatus('error');return false;}
+}
+
+// Resolves to the signed-in user, or null when no email login is configured.
+function waitForAuth(){
+  let cfg=getFirebaseCfg();
+  if(!cfg||!cfg.email||!firebase.auth)return Promise.resolve(null);
+  return new Promise(resolve=>{
+    let off=firebase.auth().onAuthStateChanged(u=>{off();resolve(u||null);});
+  });
+}
+
+async function startCloud(){
+  if(!initFirebase())return;
+  let cfg=getFirebaseCfg();
+  if(cfg.email){
+    fbAuthUser=await waitForAuth();
+    if(!fbAuthUser){setSyncStatus('login');showToast('🔐 Cloud ke liye login karein');openFbSetup();return;}
+  }
+  cloudEnabled=true;
+  setSyncStatus('online');
+  await loadSyncBase();
+  await syncNow();
+  listenForCloudChanges();
+}
+
+function saveFirebaseConfig(){
+  let v=id=>(document.getElementById(id)?.value||'').trim();
+  let cfg={apiKey:v('fb_apiKey'),authDomain:v('fb_authDomain'),projectId:v('fb_projectId'),appId:v('fb_appId'),email:v('fb_email').toLowerCase()};
+  let pass=document.getElementById('fb_password')?.value||'';
+  if(!cfg.apiKey||!cfg.projectId){showToast('⚠️ API Key zaruri');return;}
+  if(cfg.email&&pass.length<6){showToast('⚠️ Password kam az kam 6 huroof');return;}
+  let old=getFirebaseCfg();
+  let changedProject=!old||old.projectId!==cfg.projectId||old.apiKey!==cfg.apiKey;
+  localStorage.setItem('ww_fb_cfg',JSON.stringify(cfg));
+  if(changedProject||!cfg.email){
+    // A new Firebase project needs a fresh start; the email login happens after reload.
+    if(cfg.email)sessionStorage.setItem('ww_fb_pending_pass',pass);
+    showToast('✅ Saved! Reload...');setTimeout(()=>location.reload(),1200);return;
+  }
+  fbSignIn(cfg.email,pass);
+}
+
+async function fbSignIn(email,pass){
+  if(!initFirebase()||!firebase.auth){showToast('⚠️ Firebase load nahi hua');return;}
+  let auth=firebase.auth();
+  try{
+    try{await auth.signInWithEmailAndPassword(email,pass);}
+    catch(e){
+      // First time: the account does not exist yet, so create it.
+      if(e.code==='auth/user-not-found'||e.code==='auth/invalid-credential'||e.code==='auth/invalid-login-credentials'){
+        try{await auth.createUserWithEmailAndPassword(email,pass);}
+        catch(e2){if(e2.code==='auth/email-already-in-use')throw {code:'auth/wrong-password'};throw e2;}
+      }else throw e;
+    }
+    document.getElementById('fbSetupOverlay').classList.remove('open');
+    showToast('✅ Login ho gaya');
+    startCloud();
+  }catch(e){
+    let msg={'auth/wrong-password':'Password galat hai','auth/invalid-email':'Email theek nahi','auth/operation-not-allowed':'Firebase mein Email/Password login ON karein (Step 3)','auth/network-request-failed':'Internet nahi hai','auth/too-many-requests':'Bohat koshishein — thori der baad'}[e.code]||('Login error: '+(e.code||e.message||e));
+    showToast('⚠️ '+msg);
+  }
+}
+
+function fbLogout(){
+  if(typeof firebase!=='undefined'&&firebase.auth)firebase.auth().signOut().finally(()=>location.reload());
+}
+
 function skipFirebaseSetup(){document.getElementById('fbSetupOverlay').classList.remove('open');}
-function openFbSetup(){let cfg=getFirebaseCfg();if(cfg){document.getElementById('fb_apiKey').value=cfg.apiKey||'';document.getElementById('fb_authDomain').value=cfg.authDomain||'';document.getElementById('fb_projectId').value=cfg.projectId||'';document.getElementById('fb_appId').value=cfg.appId||'';}document.getElementById('fbSetupOverlay').classList.add('open');}
-function setSyncStatus(s){let dot=document.getElementById('syncDot'),txt=document.getElementById('syncText');if(!dot||!txt)return;dot.className='sync-dot';if(s==='online'){txt.textContent='☁️ Synced';}else if(s==='syncing'){dot.classList.add('syncing');txt.textContent='⟳ Syncing...';}else if(s==='error'){dot.classList.add('error');txt.textContent='📴 Offline';}else{txt.textContent='💾 Local';}}
-async function cloudSave(){if(!cloudEnabled||!db)return;setSyncStatus('syncing');try{await db.collection('erp').doc(CLOUD_USER_ID).set({...getCloudSnapshot(),savedAt:firebase.firestore.FieldValue.serverTimestamp()});setSyncStatus('online');}catch(e){setSyncStatus('error');}}
+function openFbSetup(){
+  let cfg=getFirebaseCfg();
+  let set=(id,val)=>{let el=document.getElementById(id);if(el)el.value=val||'';};
+  if(cfg){set('fb_apiKey',cfg.apiKey);set('fb_authDomain',cfg.authDomain);set('fb_projectId',cfg.projectId);set('fb_appId',cfg.appId);set('fb_email',cfg.email);}
+  updateFbRulesHint();
+  document.getElementById('fbSetupOverlay').classList.add('open');
+}
+function updateFbRulesHint(){
+  let el=document.getElementById('fbRulesCode');if(!el)return;
+  let email=(document.getElementById('fb_email')?.value||'').trim().toLowerCase()||'aap@gmail.com';
+  el.textContent=fbRulesText(email);
+}
+function fbRulesText(email){
+  return "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /erp/{doc} {\n      allow read, write: if request.auth != null\n        && request.auth.token.email in ['"+email+"'];\n    }\n  }\n}";
+}
+function copyFbRules(){
+  let t=document.getElementById('fbRulesCode')?.textContent||'';
+  (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>showToast('📋 Rules copy ho gaye'),()=>showToast('⚠️ Copy nahi hua — khud select karein'));
+}
+
+function setSyncStatus(s){let dot=document.getElementById('syncDot'),txt=document.getElementById('syncText');if(!dot||!txt)return;dot.className='sync-dot';if(s==='online'){txt.textContent='☁️ Synced';}else if(s==='syncing'){dot.classList.add('syncing');txt.textContent='⟳ Syncing...';}else if(s==='error'){dot.classList.add('error');txt.textContent='📴 Offline';}else if(s==='login'){dot.classList.add('error');txt.textContent='🔐 Login';}else{txt.textContent='💾 Local';}}
+
 function getCloudSnapshot(){
   // Firestore caps each document at 1MB. Design reference photos (base64) can push
   // the combined data past that, which would silently break cloud sync. They stay
@@ -81,10 +181,93 @@ function getCloudSnapshot(){
     let {photo,...rest}=p;
     return rest;
   });
-  return snap;
+  // Plain copy, so later edits on this phone don't change it.
+  return JSON.parse(JSON.stringify(snap));
 }
-async function cloudLoad(){if(!cloudEnabled||!db)return false;setSyncStatus('syncing');try{let snap=await db.collection('erp').doc(CLOUD_USER_ID).get();if(snap.exists){let photoMap={};orders.forEach(o=>{if(o.designPhoto)photoMap[o.id]=o.designPhoto;});let plPhotoMap={};priceList.forEach(p=>{if(p.photo)plPhotoMap[p.id]=p.photo;});applyData(snap.data());orders.forEach(o=>{if(!o.designPhoto&&photoMap[o.id])o.designPhoto=photoMap[o.id];});priceList.forEach(p=>{if(!p.photo&&plPhotoMap[p.id])p.photo=plPhotoMap[p.id];});saveLocal();setSyncStatus('online');return true;}setSyncStatus('online');return false;}catch(e){setSyncStatus('error');return false;}}
-async function manualSync(){if(!cloudEnabled){showToast('⚠️ Firebase nahi');return;}showToast('⟳ Sync...');let ok=await cloudLoad();if(ok){updateKhataFilter();renderAll();showToast('✅ Sync ho gaya!');}else showToast('⚠️ Cloud data nahi mila');}
+
+async function loadSyncBase(){
+  if(_syncBaseLoaded)return;
+  _syncBaseLoaded=true;
+  try{let raw=window.HKStore&&HKStore.ok?await HKStore.get('ww_sync_base'):localStorage.getItem('ww_sync_base');_syncBase=raw?JSON.parse(raw):null;}catch(e){_syncBase=null;}
+}
+function saveSyncBase(base){
+  _syncBase=base;
+  let raw=JSON.stringify(base);
+  if(window.HKStore&&HKStore.ok)HKStore.set('ww_sync_base',raw).catch(()=>{});
+  else{try{localStorage.setItem('ww_sync_base',raw);}catch(e){}}
+}
+
+// Puts merged cloud data into the app, keeping this phone's photos (the cloud has none).
+function applyMergedData(merged){
+  let photoMap={};orders.forEach(o=>{if(o.designPhoto)photoMap[o.id]=o.designPhoto;});
+  let plPhotoMap={};priceList.forEach(p=>{if(p.photo&&p.id!=null)plPhotoMap[p.id]=p.photo;});
+  applyData(JSON.parse(JSON.stringify(merged)));
+  orders.forEach(o=>{if(!o.designPhoto&&photoMap[o.id])o.designPhoto=photoMap[o.id];});
+  priceList.forEach(p=>{if(!p.photo&&plPhotoMap[p.id])p.photo=plPhotoMap[p.id];});
+}
+
+// Reads the cloud copy, merges it with this phone's data, and writes back if needed.
+async function syncNow(){
+  if(!cloudEnabled||!db)return false;
+  if(_syncRunning){_syncAgain=true;return false;}
+  _syncRunning=true;
+  setSyncStatus('syncing');
+  let ok=false;
+  try{
+    await loadSyncBase();
+    let local=getCloudSnapshot();
+    let localText=HKSync.stable(local);
+    _cloudDirty=false;
+    let merged=null,remoteFound=false;
+    await db.runTransaction(async tx=>{
+      let snap=await tx.get(cloudDocRef());
+      let remote=null;
+      if(snap.exists){remote=snap.data();delete remote.savedAt;remoteFound=true;}
+      merged=HKSync.merge(_syncBase,local,remote);
+      if(!remote||!HKSync.same(merged,remote)){
+        tx.set(cloudDocRef(),{...merged,savedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      }
+    });
+    saveSyncBase(merged);
+    if(HKSync.stable(getCloudSnapshot())!==localText){
+      // The user changed something while we were syncing: sync again with their change.
+      _syncAgain=true;
+    }else if(!HKSync.same(merged,local)){
+      applyMergedData(merged);
+      saveLocal();
+      updateKhataFilter();renderAll();
+    }
+    setSyncStatus('online');
+    ok=true;
+  }catch(e){
+    console.warn('Sync:',e);
+    _cloudDirty=true;
+    if(e&&e.code==='permission-denied'){setSyncStatus('login');showToast('🔐 Cloud ne mana kar diya — login/rules check karein');}
+    else setSyncStatus('error');
+  }finally{
+    _syncRunning=false;
+    if(_syncAgain){_syncAgain=false;setTimeout(syncNow,500);}
+  }
+  return ok;
+}
+
+// Live updates: when another phone saves, merge its changes in right away.
+function listenForCloudChanges(){
+  if(_cloudUnsub||!db)return;
+  try{
+    _cloudUnsub=cloudDocRef().onSnapshot(snap=>{
+      if(snap.metadata.hasPendingWrites||!snap.exists)return;
+      let remote=snap.data();delete remote.savedAt;
+      if(_syncBase&&HKSync.same(remote,_syncBase))return; // nothing new
+      clearTimeout(window._cloudPullTimer);
+      window._cloudPullTimer=setTimeout(syncNow,800);
+    },()=>{});
+  }catch(e){}
+}
+
+async function cloudSave(){if(!cloudEnabled)return;_cloudDirty=true;await syncNow();}
+async function cloudLoad(){return syncNow();}
+async function manualSync(){if(!cloudEnabled){showToast(getFirebaseCfg()?'🔐 Pehle login karein':'⚠️ Firebase nahi');if(getFirebaseCfg())openFbSetup();return;}showToast('⟳ Sync...');let ok=await syncNow();showToast(ok?'✅ Sync ho gaya!':'⚠️ Sync nahi hua — internet check karein');}
 
 function tryInitFirebaseOnLoad(attemptsLeft){
   if(attemptsLeft===undefined)attemptsLeft=40;
@@ -94,9 +277,13 @@ function tryInitFirebaseOnLoad(attemptsLeft){
     setTimeout(()=>tryInitFirebaseOnLoad(attemptsLeft-1),250);
     return;
   }
-  if(initFirebase()){
-    cloudLoad().then(ok=>{if(ok){updateKhataFilter();renderAll();}});
+  let pending=sessionStorage.getItem('ww_fb_pending_pass');
+  if(pending){
+    sessionStorage.removeItem('ww_fb_pending_pass');
+    fbSignIn(getFirebaseCfg().email,pending);
+    return;
   }
+  startCloud();
 }
 
 // ─── HELPERS ───
@@ -276,6 +463,9 @@ function amountInWords(n){return numToWordsPK(n)+' Rupees Only';}
 let parties=[],orders=[],labours=[],expenses=[],inventory=[],deletedItems=[],purchases=[],suppliers=[],bankTransactions=[];
 let karigars=[];
 let woodTypes=[{id:1,name:'Pertal Wood',rate:340,openingStock:0},{id:2,name:'German Kail',rate:280,openingStock:0},{id:3,name:'Indian Kail',rate:220,openingStock:0},{id:4,name:'Yellow Pine',rate:300,openingStock:0},{id:5,name:'Mahogany',rate:450,openingStock:0}];
+// New records get a time-based id so two phones never create the same id
+// (old ids from a simple counter clashed when phones synced).
+function newId(){let t=Date.now()*100+Math.floor(Math.random()*100);nextId=Math.max((nextId||0)+1,t);return nextId;}
 let defaultThickness=1.5,nextId=100,orderCounter=0,purchaseCounter=0,labourCounter=0,receiptCounter=0,challanCounter=0;
 let priceList=[],orderTemplates=[],doorDesigns=[];
 let karigarAttendance=[];
@@ -321,9 +511,19 @@ const QUICK_EXPENSE_ITEMS=[
 
 // ─── STORAGE ───
 function getDataSnapshot(){return{parties,orders,labours,expenses,inventory,deletedItems,woodTypes,defaultThickness,nextId,orderCounter,purchaseCounter,labourCounter,receiptCounter,purchases,suppliers,bankTransactions,karigars,businessProfile,staffUsers,priceList,orderTemplates,challanCounter,doorDesigns,karigarAttendance,quotations,quoteCounter,cheques};}
-function saveLocal(){try{localStorage.setItem('ww_data',JSON.stringify(getDataSnapshot()));}catch(e){showToast('⚠️ Storage full!');}}
-function saveAll(){saveLocal();clearTimeout(window._cloudTimer);window._cloudTimer=setTimeout(()=>{if(cloudEnabled)cloudSave();},4000);}
-function loadData(){try{let raw=localStorage.getItem('ww_data');if(raw){let d=JSON.parse(raw);parties=d.parties||[];orders=d.orders||[];labours=d.labours||[];expenses=d.expenses||[];inventory=d.inventory||[];deletedItems=d.deletedItems||[];woodTypes=d.woodTypes||woodTypes;defaultThickness=d.defaultThickness||1.5;nextId=d.nextId||100;orderCounter=d.orderCounter||0;purchaseCounter=d.purchaseCounter||0;labourCounter=d.labourCounter||0;receiptCounter=d.receiptCounter||0;purchases=d.purchases||[];suppliers=d.suppliers||[];bankTransactions=d.bankTransactions||[];karigars=d.karigars||[];businessProfile=d.businessProfile||businessProfile;staffUsers=d.staffUsers||[];priceList=d.priceList||[];orderTemplates=d.orderTemplates||[];challanCounter=d.challanCounter||0;doorDesigns=d.doorDesigns||[];karigarAttendance=d.karigarAttendance||[];quotations=d.quotations||[];quoteCounter=d.quoteCounter||0;cheques=d.cheques||[];orders.forEach(o=>{if(!o.payments)o.payments=[];});}}catch(e){console.error('Load:',e);}try{let uid=localStorage.getItem('ww_active_user');if(uid&&staffUsers.some(u=>u.id===parseInt(uid)))activeUserId=parseInt(uid);}catch(e){}if(!doorDesigns.length)doorDesigns=[...DEFAULT_DOOR_DESIGNS];applyBusinessProfileToUI();}
+function saveLocal(){
+  let raw;try{raw=JSON.stringify(getDataSnapshot());}catch(e){console.error('Save:',e);return;}
+  if(window.HKStore&&HKStore.ok){
+    HKStore.set('ww_data',raw).catch(()=>{
+      try{localStorage.setItem('ww_data',raw);}catch(e){showToast('⚠️ Storage full! Backup download karein');}
+    });
+  }else{
+    try{localStorage.setItem('ww_data',raw);}catch(e){showToast('⚠️ Storage full! Backup download karein');}
+  }
+}
+function saveAll(){saveLocal();_cloudDirty=true;clearTimeout(window._cloudTimer);window._cloudTimer=setTimeout(()=>{if(cloudEnabled)cloudSave();},4000);}
+let _bootRaw=null;
+function loadData(){try{let raw=_bootRaw!==null?_bootRaw:localStorage.getItem('ww_data');if(raw){let d=JSON.parse(raw);parties=d.parties||[];orders=d.orders||[];labours=d.labours||[];expenses=d.expenses||[];inventory=d.inventory||[];deletedItems=d.deletedItems||[];woodTypes=d.woodTypes||woodTypes;defaultThickness=d.defaultThickness||1.5;nextId=d.nextId||100;orderCounter=d.orderCounter||0;purchaseCounter=d.purchaseCounter||0;labourCounter=d.labourCounter||0;receiptCounter=d.receiptCounter||0;purchases=d.purchases||[];suppliers=d.suppliers||[];bankTransactions=d.bankTransactions||[];karigars=d.karigars||[];businessProfile=d.businessProfile||businessProfile;staffUsers=d.staffUsers||[];priceList=d.priceList||[];orderTemplates=d.orderTemplates||[];challanCounter=d.challanCounter||0;doorDesigns=d.doorDesigns||[];karigarAttendance=d.karigarAttendance||[];quotations=d.quotations||[];quoteCounter=d.quoteCounter||0;cheques=d.cheques||[];orders.forEach(o=>{if(!o.payments)o.payments=[];});}}catch(e){console.error('Load:',e);}try{let uid=localStorage.getItem('ww_active_user');if(uid&&staffUsers.some(u=>u.id===parseInt(uid)))activeUserId=parseInt(uid);}catch(e){}if(!doorDesigns.length)doorDesigns=[...DEFAULT_DOOR_DESIGNS];applyBusinessProfileToUI();}
 function applyData(d){if(d.parties)parties=d.parties;if(d.orders)orders=d.orders;if(d.labours)labours=d.labours;if(d.expenses)expenses=d.expenses;if(d.inventory)inventory=d.inventory;if(d.deletedItems)deletedItems=d.deletedItems;if(d.woodTypes)woodTypes=d.woodTypes;if(d.defaultThickness)defaultThickness=d.defaultThickness;if(d.nextId)nextId=d.nextId;if(d.orderCounter)orderCounter=d.orderCounter;if(d.purchaseCounter)purchaseCounter=d.purchaseCounter;if(d.labourCounter)labourCounter=d.labourCounter;if(d.receiptCounter)receiptCounter=d.receiptCounter;if(d.purchases)purchases=d.purchases;if(d.suppliers)suppliers=d.suppliers;if(d.bankTransactions)bankTransactions=d.bankTransactions;if(d.karigars)karigars=d.karigars;if(d.businessProfile)businessProfile=d.businessProfile;if(d.staffUsers)staffUsers=d.staffUsers;if(d.priceList)priceList=d.priceList;if(d.orderTemplates)orderTemplates=d.orderTemplates;if(d.challanCounter)challanCounter=d.challanCounter;if(d.doorDesigns)doorDesigns=d.doorDesigns;if(d.karigarAttendance)karigarAttendance=d.karigarAttendance;if(d.quotations)quotations=d.quotations;if(d.quoteCounter)quoteCounter=d.quoteCounter;if(d.cheques)cheques=d.cheques;orders.forEach(o=>{if(!o.payments)o.payments=[];});saveLocal();applyBusinessProfileToUI();}
 function applyBusinessProfileToUI(){let h=document.getElementById('hdrCompanyName');if(h)h.textContent=businessProfile.name||'HK WOOD DOORS';document.title=(businessProfile.name||'HK WOOD DOORS')+' — ERP';}
 
@@ -704,7 +904,7 @@ function saveQuotation(){
   if(partyId==='__new__'){
     let newName=document.getElementById('inlinePartyName')?.value.trim();
     if(!newName){showToast('⚠️ Party ka naam likhein');return;}
-    let newParty={id:nextId++,name:newName,phone:document.getElementById('inlinePartyPhone')?.value||'',area:'',address:document.getElementById('inlinePartyAddress')?.value||'',openingBalance:0,createdAt:new Date().toISOString()};
+    let newParty={id:newId(),name:newName,phone:document.getElementById('inlinePartyPhone')?.value||'',area:'',address:document.getElementById('inlinePartyAddress')?.value||'',openingBalance:0,createdAt:new Date().toISOString()};
     parties.push(newParty);
     partyId=String(newParty.id);
     showToast(`✅ Party "${newName}" add ho gayi`);
@@ -731,7 +931,7 @@ function saveQuotation(){
     if(idx>-1){quoteData.status=quotations[idx].status;quoteData.quoteNo=quotations[idx].quoteNo;quotations[idx]={...quotations[idx],...quoteData};showToast('✅ Estimate updated');}
   }else{
     quoteCounter++;
-    quoteData.id=nextId++;
+    quoteData.id=newId();
     quoteData.quoteNo='EST-'+quoteCounter;
     quoteData.status='pending';
     quoteData.createdAt=new Date().toISOString();
@@ -794,7 +994,7 @@ function convertQuotationToOrder(quoteId){
     let totalLabour=0; // labour is assigned separately once production actually starts
     let netProfit=q.quoteTotal-(q.totalWoodCost||0)-totalLabour;
     let newOrder={
-      id:nextId++,orderNo,partyId:q.partyId,date:new Date().toISOString().slice(0,10),
+      id:newId(),orderNo,partyId:q.partyId,date:new Date().toISOString().slice(0,10),
       status:'pending',advancePayment:0,note:q.note||'',
       doors:JSON.parse(JSON.stringify(q.doors||[])),
       orderTotal:q.quoteTotal,totalWoodCft:q.totalWoodCft,totalWoodCost:q.totalWoodCost,
@@ -1121,7 +1321,7 @@ function saveCurrentAsTemplate(){
   if(!currentOrderDoors.length){showToast('⚠️ Order mein koi door nahi');return;}
   let partyId=document.getElementById('orderPartyId')?.value;
   orderTemplates.push({
-    id:nextId++,
+    id:newId(),
     name,
     partyId:partyId?parseInt(partyId):null,
     doors:currentOrderDoors.map(d=>({...d})),
@@ -1184,7 +1384,7 @@ function saveOrder(){
     let newName=document.getElementById('inlinePartyName')?.value.trim();
     if(!newName){showToast('⚠️ Party ka naam likhein');return;}
     let newParty={
-      id:nextId++,
+      id:newId(),
       name:newName,
       phone:document.getElementById('inlinePartyPhone')?.value||'',
       area:'',
@@ -1236,7 +1436,7 @@ function saveOrder(){
   }else{
     orderCounter++;
     let orderNo=businessProfile.invoicePrefix+orderCounter;
-    orderData.id=nextId++;
+    orderData.id=newId();
     orderData.orderNo=orderNo;
     orderData.payments=[];
     orderData.createdAt=new Date().toISOString();
@@ -1782,7 +1982,7 @@ function addPayment(){
   if(!o.payments)o.payments=[];
   let paymentId=Date.now();
   // Auto-record this in the Bank/Cash Book so "kis account mein aaya" is always tracked
-  let bankTxId=nextId++;
+  let bankTxId=newId();
   bankTransactions.push({id:bankTxId,type:'deposit',account:method,amount,date,description:`Payment from ${getPartyName(o.partyId)} (${o.orderNo})`,createdAt:new Date().toISOString()});
   o.payments.push({id:paymentId,amount,date,method,note,user:activeUserId,bankTxId});
   saveAll();
@@ -2364,7 +2564,7 @@ function saveLabour(){
       showToast('✅ Labour updated');
     }
   }else{
-    data.id=nextId++;
+    data.id=newId();
     data.createdAt=new Date().toISOString();
     labourCounter++;
     data.labourNo='LAB-'+labourCounter;
@@ -2378,7 +2578,7 @@ function saveLabour(){
       let tx=bankTransactions.find(t=>t.id===existingBankTxId);
       tx.amount=paid; tx.account=paidAccount; tx.date=date; tx.description=desc;
     }else{
-      let txId=nextId++;
+      let txId=newId();
       bankTransactions.push({id:txId,type:'withdrawal',account:paidAccount,amount:paid,date,description:desc,createdAt:new Date().toISOString()});
       let target=editingLabourId?labours.find(x=>x.id===editingLabourId):labours[labours.length-1];
       if(target)target.bankTxId=txId;
@@ -2569,7 +2769,7 @@ function addKarigar(){
   let name=document.getElementById('karigarName')?.value.trim();
   let phone=document.getElementById('karigarPhone')?.value.trim();
   if(!name){showToast('⚠️ Name zaruri');return;}
-  karigars.push({id:nextId++,name,phone:phone||'',workType:'General',createdAt:new Date().toISOString()});
+  karigars.push({id:newId(),name,phone:phone||'',workType:'General',createdAt:new Date().toISOString()});
   saveAll();
   renderKarigarModalBody();
   showToast('✅ Karigar added');
@@ -2705,7 +2905,7 @@ function markAttendance(karigarId,status){
       karigarAttendance[idx].status=status;
     }
   }else{
-    karigarAttendance.push({id:nextId++,karigarId,date:attendanceSelectedDate,status,wage:0,paid:0});
+    karigarAttendance.push({id:newId(),karigarId,date:attendanceSelectedDate,status,wage:0,paid:0});
   }
   saveAll();
   renderAttendanceModalBody();
@@ -2777,7 +2977,7 @@ function saveParty(){
     let idx=parties.findIndex(p=>p.id===editingPartyId);
     if(idx>-1){parties[idx]={...parties[idx],...data};showToast('✅ Party updated');}
   }else{
-    data.id=nextId++;
+    data.id=newId();
     data.createdAt=new Date().toISOString();
     parties.push(data);
     showToast('✅ Party added');
@@ -2941,7 +3141,7 @@ function addPartyPayment(){
     let due=o.orderTotal-getOrderTotalPaid(o);
     let applyAmt=Math.min(due,remaining);
     if(!o.payments)o.payments=[];
-    let bankTxId=nextId++;
+    let bankTxId=newId();
     bankTransactions.push({id:bankTxId,type:'deposit',account:method,amount:applyAmt,date,description:`Payment from ${p.name} (${o.orderNo})`,createdAt:new Date().toISOString()});
     o.payments.push({id:Date.now()+Math.floor(Math.random()*1000),amount:applyAmt,date,method,note,user:activeUserId,bankTxId});
     allocation.push({label:o.orderNo,amount:applyAmt,fullySettled:applyAmt>=due});
@@ -2951,7 +3151,7 @@ function addPartyPayment(){
   // 2. Anything left over reduces the general/opening balance
   if(remaining>0){
     if(!p.partyPayments)p.partyPayments=[];
-    let bankTxId=nextId++;
+    let bankTxId=newId();
     bankTransactions.push({id:bankTxId,type:'deposit',account:method,amount:remaining,date,description:`Payment from ${p.name} (Opening Balance)`,createdAt:new Date().toISOString()});
     p.partyPayments.push({id:Date.now(),amount:remaining,date,method,note,bankTxId});
     allocation.push({label:'Opening Balance / Purani Baqi',amount:remaining,fullySettled:getPartyBalance(p)<=0});
@@ -3244,7 +3444,7 @@ function saveInventory(){
     let idx=inventory.findIndex(x=>x.id===editingInventoryId);
     if(idx>-1){inventory[idx]={...inventory[idx],...data};showToast('✅ Stock updated');}
   }else{
-    data.id=nextId++;
+    data.id=newId();
     data.createdAt=new Date().toISOString();
     inventory.push(data);
     showToast('✅ Stock added');
@@ -3332,7 +3532,7 @@ function saveExpense(){
     let idx=expenses.findIndex(x=>x.id===editingExpenseId);
     if(idx>-1){expenses[idx]={...expenses[idx],...data};showToast('✅ Kharcha updated');}
   }else{
-    data.id=nextId++;
+    data.id=newId();
     data.createdAt=new Date().toISOString();
     expenses.push(data);
     showToast('✅ Kharcha added');
@@ -3564,7 +3764,10 @@ function openSettingsModal(){
 function resetAllData() {
   customConfirm('⚠️ Are you sure you want to DELETE ALL DATA? This cannot be undone!', () => {
     localStorage.clear();
-    location.reload();
+    // Auto-backups are kept on purpose so a reset by mistake can still be undone.
+    let done=()=>location.reload();
+    if(window.HKStore&&HKStore.ok){Promise.all([HKStore.del('ww_data'),HKStore.del('ww_sync_base')]).then(done,done);}
+    else done();
   }, { danger: true, okText: 'DELETE ALL' });
 }
 
@@ -3632,7 +3835,7 @@ function addWoodType(){
   let name=document.getElementById('newWoodName')?.value.trim();
   let rate=parseFloat(document.getElementById('newWoodRate')?.value)||0;
   if(!name||rate<=0){showToast('⚠️ Name and rate zaruri');return;}
-  woodTypes.push({id:nextId++,name,rate});
+  woodTypes.push({id:newId(),name,rate});
   saveAll();
   openSettingsModal();
 }
@@ -3786,7 +3989,7 @@ function saveCheque(){
     let idx=cheques.findIndex(x=>x.id===editingChequeId);
     if(idx>-1)cheques[idx]={...cheques[idx],...data};
   }else{
-    data.id=nextId++;
+    data.id=newId();
     data.status='pending';
     data.createdAt=new Date().toISOString();
     cheques.push(data);
@@ -3812,7 +4015,7 @@ function markChequeCleared(id){
         let due=o.orderTotal-getOrderTotalPaid(o);
         let applyAmt=Math.min(due,remaining);
         if(!o.payments)o.payments=[];
-        let bankTxId=nextId++;
+        let bankTxId=newId();
         bankTransactions.push({id:bankTxId,type:'deposit',account:c.bankName||'Bank',amount:applyAmt,date,description:`Cheque #${c.chequeNo||''} from ${p.name} (${o.orderNo})`,createdAt:new Date().toISOString()});
         o.payments.push({id:Date.now()+Math.floor(Math.random()*1000),amount:applyAmt,date,method:'Cheque · '+(c.bankName||''),note:c.note||'',user:activeUserId,bankTxId});
         allocation.push({label:o.orderNo,amount:applyAmt,fullySettled:applyAmt>=due});
@@ -3820,7 +4023,7 @@ function markChequeCleared(id){
       }
       if(remaining>0){
         if(!p.partyPayments)p.partyPayments=[];
-        let bankTxId=nextId++;
+        let bankTxId=newId();
         bankTransactions.push({id:bankTxId,type:'deposit',account:c.bankName||'Bank',amount:remaining,date,description:`Cheque #${c.chequeNo||''} from ${p.name} (Opening Balance)`,createdAt:new Date().toISOString()});
         p.partyPayments.push({id:Date.now(),amount:remaining,date,method:'Cheque · '+(c.bankName||''),note:c.note||'',bankTxId});
         allocation.push({label:'Opening Balance / Purani Baqi',amount:remaining,fullySettled:getPartyBalance(p)<=0});
@@ -3832,7 +4035,7 @@ function markChequeCleared(id){
       renderAll();
       showPaymentReceipt(p,c.amount,date,'Cheque · '+(c.bankName||''),allocation);
     }else{
-      let bankTxId=nextId++;
+      let bankTxId=newId();
       bankTransactions.push({id:bankTxId,type:'withdrawal',account:c.bankName||'Bank',amount:c.amount,date,description:`Cheque #${c.chequeNo||''} paid to ${c.recipientName||''}`,createdAt:new Date().toISOString()});
       c.status='cleared';
       c.clearedDate=date;
@@ -3926,7 +4129,7 @@ function saveBankTransaction(){
     let idx=bankTransactions.findIndex(x=>x.id===editingBankTransactionId);
     if(idx>-1){bankTransactions[idx]={...bankTransactions[idx],...data};showToast('✅ Transaction updated');}
   }else{
-    data.id=nextId++;
+    data.id=newId();
     data.createdAt=new Date().toISOString();
     bankTransactions.push(data);
     showToast('✅ Transaction added');
@@ -4020,7 +4223,7 @@ function savePurchase(){
     let idx=purchases.findIndex(x=>x.id===editingPurchaseId);
     if(idx>-1){purchases[idx]={...purchases[idx],...data};showToast('✅ Purchase updated');}
   }else{
-    data.id=nextId++;
+    data.id=newId();
     data.createdAt=new Date().toISOString();
     purchaseCounter++;
     data.purchaseNo='PUR-'+purchaseCounter;
@@ -4088,7 +4291,7 @@ function saveSupplier(){
     let idx=suppliers.findIndex(x=>x.id===editingSupplierId);
     if(idx>-1){suppliers[idx]={...suppliers[idx],...data};showToast('✅ Supplier updated');}
   }else{
-    data.id=nextId++;
+    data.id=newId();
     data.createdAt=new Date().toISOString();
     suppliers.push(data);
     showToast('✅ Supplier added');
@@ -4153,7 +4356,7 @@ function addWoodTypeFromWoodModal(){
   let name=document.getElementById('wm_newWoodName')?.value.trim();
   let rate=parseFloat(document.getElementById('wm_newWoodRate')?.value)||0;
   if(!name||rate<=0){showToast('⚠️ Name and rate zaruri');return;}
-  woodTypes.push({id:nextId++,name,rate});
+  woodTypes.push({id:newId(),name,rate});
   saveAll();
   openWoodModal();
 }
@@ -4421,7 +4624,7 @@ function resetAllWoodStock(){
 function openPriceListModal(){
   if(!priceList.length){
     // Seed once from door designs (rate is set by design, not by size)
-    priceList=doorDesigns.map(d=>({id:nextId++,size:d,rate:440}));
+    priceList=doorDesigns.map(d=>({id:newId(),size:d,rate:440}));
     saveAll();
   }
   renderPriceListModalBody();
@@ -4501,7 +4704,7 @@ function addPriceListEntry(){
   let size=document.getElementById('plNewSize')?.value.trim();
   let rate=parseFloat(document.getElementById('plNewRate')?.value)||0;
   if(!size||rate<=0){showToast('⚠️ Design ka naam aur rate zaruri');return;}
-  priceList.push({id:nextId++,size,rate});
+  priceList.push({id:newId(),size,rate});
   saveAll();
   renderPriceListModalBody();
 }
@@ -4984,7 +5187,8 @@ function exportKhataCSV(){
 }
 
 // ─── INIT ───────────────────────────────────────────
-function init(){
+async function init(){
+  if(window.HKStore){try{_bootRaw=await HKStore.boot();}catch(e){}}
   loadData();
   orders.forEach(o=>{
     if(o.doors){
@@ -5000,7 +5204,9 @@ function init(){
   renderAll();
   tryInitFirebaseOnLoad(40);
   checkBackupReminder();
-  setInterval(()=>{saveLocal();if(cloudEnabled)cloudSave();},30000);
+  setInterval(()=>{saveLocal();if(cloudEnabled&&_cloudDirty)syncNow();},30000);
+  // Save straight away when the app goes to the background or is closed.
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveLocal();});
 }
 
 document.addEventListener('DOMContentLoaded',init);
