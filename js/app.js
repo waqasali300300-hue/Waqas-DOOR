@@ -3816,6 +3816,7 @@ function importBackup(file){
       if(!data||typeof data!=='object'){throw new Error('Invalid backup file');}
       customConfirm('Yeh backup restore karne se maujooda data overwrite ho jayega. Aage badhein?',()=>{
         applyData(data);
+        saveAll();
         updateKhataFilter();
         renderAll();
         updateUserBadge();
@@ -5204,6 +5205,7 @@ async function init(){
   renderAll();
   tryInitFirebaseOnLoad(40);
   checkBackupReminder();
+  document.dispatchEvent(new Event('hk:ready'));
   setInterval(()=>{saveLocal();if(cloudEnabled&&_cloudDirty)syncNow();},30000);
   // Save straight away when the app goes to the background or is closed.
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveLocal();});

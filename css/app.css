@@ -284,3 +284,15 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
 .trend-up{background:#d1fae5;color:#065f46;}
 .trend-down{background:#fee2e2;color:#b91c1c;}
 @media print{.bottom-nav,.header,.no-print,.theme-toggle,.sync-indicator{display:none!important;}body{background:#fff;padding:0;}}
+
+/* ── PIN lock / prompt ── */
+.hk-pin-overlay{position:fixed;inset:0;z-index:10000;background:rgba(10,20,40,.55);display:flex;align-items:center;justify-content:center;padding:16px;}
+.hk-pin-overlay.hk-pin-lock{background:linear-gradient(160deg,#0f2547,#1a3a6a);}
+.hk-pin-box{background:var(--white,#fff);color:var(--gray-900,#1a1a1a);border-radius:16px;padding:18px;width:100%;max-width:300px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.3);}
+.hk-pin-icon{font-size:30px;margin-bottom:4px;}
+.hk-pin-title{font-weight:700;font-size:13px;margin-bottom:10px;}
+.hk-pin-input{text-align:center;font-size:20px;letter-spacing:8px;}
+.hk-pin-err{color:#c0392b;font-size:10px;min-height:14px;margin-top:4px;}
+.hk-pin-box.shake{animation:hkShake .35s;}
+@keyframes hkShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.hk-pin-box .btn{justify-content:center;}
