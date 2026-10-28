@@ -156,7 +156,7 @@ function updateFbRulesHint(){
   el.textContent=fbRulesText(email);
 }
 function fbRulesText(email){
-  return "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /erp/{doc} {\n      allow read, write: if request.auth != null\n        && request.auth.token.email in ['"+email+"'];\n    }\n  }\n}";
+  return "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null\n        && request.auth.token.email in ['"+email+"'];\n    }\n  }\n}";
 }
 function copyFbRules(){
   let t=document.getElementById('fbRulesCode')?.textContent||'';
@@ -165,24 +165,125 @@ function copyFbRules(){
 
 function setSyncStatus(s){let dot=document.getElementById('syncDot'),txt=document.getElementById('syncText');if(!dot||!txt)return;dot.className='sync-dot';if(s==='online'){txt.textContent='☁️ Synced';}else if(s==='syncing'){dot.classList.add('syncing');txt.textContent='⟳ Syncing...';}else if(s==='error'){dot.classList.add('error');txt.textContent='📴 Offline';}else if(s==='login'){dot.classList.add('error');txt.textContent='🔐 Login';}else{txt.textContent='💾 Local';}}
 
+// ── Photos ──
+// Firestore allows 1MB per document, so photos can't live inside the main data.
+// Each photo goes to its own document in 'erp_photos', named after its content.
+// The main data only carries that name (e.g. designPhotoRef), and other phones
+// download the photo from it.
+const PHOTO_FIELDS={orders:'designPhoto',quotations:'designPhoto',priceList:'photo'};
+const MAX_PHOTO_CHARS=1000000;
+let _photoRefCache=new Map(),_photosUploaded=null,_photoFetching=new Set(),_photoRulesWarned=false;
+
+function photoRef(dataUrl){
+  let hit=_photoRefCache.get(dataUrl);if(hit)return hit;
+  let h1=0x811c9dc5,h2=0x01000193^0x5bd1e995;
+  for(let i=0;i<dataUrl.length;i++){
+    let c=dataUrl.charCodeAt(i);
+    h1=Math.imul(h1^c,16777619);
+    h2=Math.imul(h2^c,2246822507);
+  }
+  let ref='p'+dataUrl.length.toString(36)+'_'+(h1>>>0).toString(36)+(h2>>>0).toString(36);
+  _photoRefCache.set(dataUrl,ref);
+  return ref;
+}
+
 function getCloudSnapshot(){
-  // Firestore caps each document at 1MB. Design reference photos (base64) can push
-  // the combined data past that, which would silently break cloud sync. They stay
-  // fully saved on-device (local backup + manual JSON export both keep them) — only
-  // the cloud copy omits them.
   let snap=getDataSnapshot();
-  snap.orders=(snap.orders||[]).map(o=>{
-    if(!o.designPhoto)return o;
-    let {designPhoto,...rest}=o;
-    return rest;
-  });
-  snap.priceList=(snap.priceList||[]).map(p=>{
-    if(!p.photo)return p;
-    let {photo,...rest}=p;
-    return rest;
-  });
+  for(const [coll,field] of Object.entries(PHOTO_FIELDS)){
+    snap[coll]=(snap[coll]||[]).map(r=>{
+      if(!r||typeof r!=='object')return r;
+      let refKey=field+'Ref';
+      let {[field]:photo,[refKey]:pendingRef,...rest}=r;
+      if(photo)rest[refKey]=photoRef(photo);
+      else if(pendingRef)rest[refKey]=pendingRef; // not downloaded on this phone yet
+      return rest;
+    });
+  }
   // Plain copy, so later edits on this phone don't change it.
   return JSON.parse(JSON.stringify(snap));
+}
+
+function photoCollections(){return {orders,quotations,priceList};}
+
+// Every photo currently on this phone, by its ref.
+function localPhotoMap(){
+  let map=new Map(),cols=photoCollections();
+  for(const [coll,field] of Object.entries(PHOTO_FIELDS)){
+    (cols[coll]||[]).forEach(r=>{if(r&&r[field])map.set(photoRef(r[field]),r[field]);});
+  }
+  return map;
+}
+
+// Fills in photos we have; returns how many are still missing.
+function fillPhotos(map){
+  let missing=0,cols=photoCollections();
+  for(const [coll,field] of Object.entries(PHOTO_FIELDS)){
+    let refKey=field+'Ref';
+    (cols[coll]||[]).forEach(r=>{
+      if(!r||!r[refKey])return;
+      if(r[field]){delete r[refKey];return;}
+      let photo=map.get(r[refKey]);
+      if(photo){r[field]=photo;delete r[refKey];}
+      else missing++;
+    });
+  }
+  return missing;
+}
+
+async function loadUploadedSet(){
+  if(_photosUploaded)return;
+  try{let raw=window.HKStore&&HKStore.ok?await HKStore.get('ww_photos_uploaded'):null;_photosUploaded=new Set(raw?JSON.parse(raw):[]);}catch(e){_photosUploaded=new Set();}
+}
+function saveUploadedSet(){
+  if(window.HKStore&&HKStore.ok)HKStore.set('ww_photos_uploaded',JSON.stringify([..._photosUploaded])).catch(()=>{});
+}
+function warnPhotoRules(e){
+  if(e&&e.code==='permission-denied'&&!_photoRulesWarned){
+    _photoRulesWarned=true;
+    showToast('📷 Photos sync ke liye Firebase Rules dobara Publish karein (Cloud Setup)');
+  }
+}
+
+// Sends this phone's photos to the cloud (each one only once).
+async function uploadPhotos(){
+  if(!cloudEnabled||!db)return;
+  await loadUploadedSet();
+  let changed=false;
+  for(const [ref,data] of localPhotoMap()){
+    if(_photosUploaded.has(ref))continue;
+    if(data.length>MAX_PHOTO_CHARS){console.warn('Photo too big for cloud:',ref);continue;}
+    try{
+      await db.collection('erp_photos').doc(ref).set({data,savedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      _photosUploaded.add(ref);changed=true;
+    }catch(e){warnPhotoRules(e);break;}
+  }
+  if(changed)saveUploadedSet();
+}
+
+// Downloads photos that other phones added.
+async function downloadPhotos(){
+  if(!cloudEnabled||!db)return;
+  let refs=new Set(),cols=photoCollections();
+  for(const [coll,field] of Object.entries(PHOTO_FIELDS)){
+    (cols[coll]||[]).forEach(r=>{let ref=r&&r[field+'Ref'];if(ref&&!r[field]&&!_photoFetching.has(ref))refs.add(ref);});
+  }
+  if(!refs.size)return;
+  let got=new Map();
+  for(const ref of refs){
+    _photoFetching.add(ref);
+    try{
+      let d=await db.collection('erp_photos').doc(ref).get();
+      if(d.exists&&d.data().data)got.set(ref,d.data().data);
+    }catch(e){warnPhotoRules(e);}
+    finally{_photoFetching.delete(ref);}
+  }
+  if(!got.size)return;
+  await loadUploadedSet();
+  got.forEach((v,k)=>_photosUploaded.add(k));
+  saveUploadedSet();
+  fillPhotos(got);
+  saveLocal();
+  renderAll();
 }
 
 async function loadSyncBase(){
@@ -197,13 +298,11 @@ function saveSyncBase(base){
   else{try{localStorage.setItem('ww_sync_base',raw);}catch(e){}}
 }
 
-// Puts merged cloud data into the app, keeping this phone's photos (the cloud has none).
+// Puts merged cloud data into the app, keeping the photos this phone already has.
 function applyMergedData(merged){
-  let photoMap={};orders.forEach(o=>{if(o.designPhoto)photoMap[o.id]=o.designPhoto;});
-  let plPhotoMap={};priceList.forEach(p=>{if(p.photo&&p.id!=null)plPhotoMap[p.id]=p.photo;});
+  let photos=localPhotoMap();
   applyData(JSON.parse(JSON.stringify(merged)));
-  orders.forEach(o=>{if(!o.designPhoto&&photoMap[o.id])o.designPhoto=photoMap[o.id];});
-  priceList.forEach(p=>{if(!p.photo&&plPhotoMap[p.id])p.photo=plPhotoMap[p.id];});
+  fillPhotos(photos);
 }
 
 // Reads the cloud copy, merges it with this phone's data, and writes back if needed.
@@ -239,6 +338,8 @@ async function syncNow(){
     }
     setSyncStatus('online');
     ok=true;
+    // Photos travel separately; failures here never block the main sync.
+    uploadPhotos().then(downloadPhotos).catch(()=>{});
   }catch(e){
     console.warn('Sync:',e);
     _cloudDirty=true;
