@@ -1,0 +1,201 @@
+// Browser tests: open the real app in headless Chromium and check the main features.
+// Run with: npm test   (needs `npx playwright install chromium` once)
+const http=require('http');
+const fs=require('fs');
+const path=require('path');
+const assert=require('assert');
+const {chromium}=require('playwright');
+
+const ROOT=path.join(__dirname,'..');
+const TYPES={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png'};
+
+function serve(){
+  return new Promise(resolve=>{
+    const server=http.createServer((req,res)=>{
+      let p=decodeURIComponent(req.url.split('?')[0].split('#')[0]);
+      if(p==='/')p='/index.html';
+      const file=path.join(ROOT,path.normalize(p));
+      if(!file.startsWith(ROOT)||!fs.existsSync(file)||fs.statSync(file).isDirectory()){res.writeHead(404);res.end();return;}
+      res.writeHead(200,{'Content-Type':TYPES[path.extname(file)]||'application/octet-stream'});
+      fs.createReadStream(file).pipe(res);
+    });
+    server.listen(0,()=>resolve(server));
+  });
+}
+
+// Mock Firestore shared by every "phone" in a test.
+const MOCK_DB=`
+  window.__cloud={erp:{},erp_photos:{}};
+  window.__mockDb=function(){
+    const clone=x=>JSON.parse(JSON.stringify(x));
+    const ref=(c,id)=>({_c:c,_id:id,
+      get:async()=>({exists:!!__cloud[c][id],data:()=>clone(__cloud[c][id])}),
+      set:async d=>{__cloud[c][id]=clone({...d,savedAt:1});},
+      onSnapshot:()=>()=>{}});
+    return {collection:c=>({doc:id=>ref(c,id)}),
+      runTransaction:async fn=>{await fn({get:r=>r.get(),set:(r,d)=>{__cloud[r._c][r._id]=clone({...d,savedAt:1});}});}};
+  };`;
+
+const tests=[];
+function test(name,fn){tests.push({name,fn});}
+
+test('app opens with no errors and every tab renders',async page=>{
+  const r=await page.evaluate(async()=>{
+    let tabs=[...document.querySelectorAll('.tab')].map(t=>t.id);
+    for(const t of tabs)switchTab(t);
+    switchTab('tabHome');
+    return tabs.length;
+  });
+  assert.ok(r>=10,'tabs: '+r);
+});
+
+test('old localStorage data moves to IndexedDB and large data saves',async page=>{
+  const r=await page.evaluate(async()=>{
+    localStorage.setItem('ww_data',JSON.stringify({parties:[{id:5,name:'Ali Traders'}],orders:[]}));
+    await HKStore.del('ww_data');
+    let raw=await HKStore.boot();
+    let migrated=JSON.parse(raw).parties[0].name;
+    _bootRaw=raw;loadData();
+    parties.push({id:6,name:'Big',photo:'x'.repeat(8e6)});saveLocal();
+    await new Promise(r=>setTimeout(r,800));
+    return {migrated,big:JSON.parse(await HKStore.get('ww_data')).parties[1].photo.length};
+  });
+  assert.strictEqual(r.migrated,'Ali Traders');
+  assert.strictEqual(r.big,8e6);
+});
+
+test('two phones syncing keep each other\'s entries, edits and deletes',async page=>{
+  const r=await page.evaluate(async()=>{
+    db=__mockDb();cloudEnabled=true;_syncBaseLoaded=true;_syncBase=null;
+    parties=[{id:1,name:'Ali'}];
+    __cloud.erp.hk_main_user={parties:[{id:1,name:'Ali'},{id:2,name:'FromB'}],nextId:500};
+    await syncNow();
+    parties.push({id:newId(),name:'NewA'});saveAll();
+    let c=__cloud.erp.hk_main_user;
+    c.parties=c.parties.map(p=>p.id===2?{...p,name:'FromB-edited'}:p);c.parties.push({id:3,name:'NewB'});
+    await syncNow();
+    let afterAdd=parties.map(p=>p.name);
+    __cloud.erp.hk_main_user.parties=__cloud.erp.hk_main_user.parties.filter(p=>p.id!==1);
+    await syncNow();
+    return {afterAdd,afterDelete:parties.map(p=>p.name)};
+  });
+  assert.deepStrictEqual(r.afterAdd,['Ali','FromB-edited','NewA','NewB']);
+  assert.deepStrictEqual(r.afterDelete,['FromB-edited','NewA','NewB']);
+});
+
+test('photos sync through their own documents',async page=>{
+  const r=await page.evaluate(async()=>{
+    db=__mockDb();cloudEnabled=true;_syncBaseLoaded=true;_syncBase=null;
+    const photo='data:image/jpeg;base64,'+'A'.repeat(200000);
+    orders=[{id:1,orderNo:'ORD-1',partyId:1,date:'2026-10-01',orderTotal:5,payments:[],designPhoto:photo}];
+    quotations=[{id:2,designPhoto:photo}];
+    await syncNow();await new Promise(r=>setTimeout(r,300));
+    let mainSize=JSON.stringify(__cloud.erp.hk_main_user).length;
+    orders=[];quotations=[];_syncBase=null;_photosUploaded=new Set();
+    await syncNow();await new Promise(r=>setTimeout(r,500));
+    return {mainSize,photoDocs:Object.keys(__cloud.erp_photos).length,ok:orders[0].designPhoto===photo&&quotations[0].designPhoto===photo};
+  });
+  assert.ok(r.mainSize<5000,'main doc size '+r.mainSize);
+  assert.strictEqual(r.photoDocs,1);
+  assert.ok(r.ok);
+});
+
+test('PIN lock, wrong PIN, and staff cannot delete',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    const type=async v=>{document.querySelector('.hk-pin-input').value=v;document.querySelector('[data-act=ok]').click();await wait(50);};
+    businessProfile.ownerPin='1234';staffUsers=[{id:77,name:'Aslam',pin:'5555'}];
+    parties=[{id:1,name:'Ali'}];saveAll();
+    lockApp();await wait(100);
+    await type('9999');let stillLocked=!!document.querySelector('.hk-pin-lock');
+    await type('5555');let staff=hkIsStaff();
+    deleteParty(1);await wait(100);
+    let kept=parties.length===1;
+    switchToOwner();await wait(100);await type('1234');
+    return {stillLocked,staff,kept,owner:!hkIsStaff()};
+  });
+  assert.deepStrictEqual(r,{stillLocked:true,staff:true,kept:true,owner:true});
+});
+
+test('activity log records who did what',async page=>{
+  const r=await page.evaluate(async()=>{
+    staffUsers=[{id:77,name:'Aslam',pin:'5555'}];
+    parties.push({id:newId(),name:'Bilal'});saveAll();
+    activeUserId=77;
+    orders.push({id:newId(),orderNo:'ORD-9',partyId:parties[0].id,date:'2026-10-28',orderTotal:50000,payments:[]});saveAll();
+    orders[0].payments.push({id:1,amount:20000,date:'2026-10-28'});saveAll();
+    activeUserId=null;
+    return activityLog.map(a=>a.user+'|'+a.type+'|'+a.coll);
+  });
+  assert.deepStrictEqual(r,['Owner|add|parties','Aslam|add|orders','Aslam|pay|orders']);
+});
+
+test('auto-backup restores deleted data',async page=>{
+  const r=await page.evaluate(async()=>{
+    parties=[{id:1,name:'Ali'}];orders=[{id:9,orderNo:'ORD-1',partyId:1,date:'2026-10-01',orderTotal:10,payments:[]}];saveAll();
+    let key='ww_autobackup_'+new Date().toISOString().slice(0,10);
+    await HKStore.del(key);
+    document.dispatchEvent(new Event('hk:ready'));await new Promise(r=>setTimeout(r,400));
+    orders=[];saveAll();
+    await restoreAutoBackup(key);await new Promise(r=>setTimeout(r,100));customConfirmOk();await new Promise(r=>setTimeout(r,200));
+    return orders.length;
+  });
+  assert.strictEqual(r,1);
+});
+
+test('monthly statement, profit report, Excel and QR order screen',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    let cur=new Date().toISOString().slice(0,7);
+    let d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);let prev=d.toISOString().slice(0,7);
+    parties=[{id:1,name:'Ali',phone:'03001234567'}];
+    orders=[{id:11,orderNo:'ORD-1',partyId:1,date:prev+'-10',orderTotal:100000,totalWoodCost:40000,totalLabour:10000,payments:[{id:1,amount:30000,date:prev+'-12'}]},
+            {id:12,orderNo:'ORD-2',partyId:1,date:cur+'-05',orderTotal:50000,totalWoodCost:20000,totalLabour:5000,payments:[{id:2,amount:60000,date:cur+'-06'}]}];
+    expenses=[{id:21,description:'Bijli',category:'Utilities',amount:8000,date:cur+'-03'}];
+    saveAll();
+    openStatements();
+    let st=document.getElementById('hkStatementModalBody').innerText;
+    openProfitReport();
+    let pl=document.getElementById('hkProfitModalBody').innerText;
+    let blobs=[];let oc=URL.createObjectURL;URL.createObjectURL=b=>{blobs.push(b);return oc(b);};
+    await exportExcel();await wait(300);
+    let wb=XLSX.read(await blobs[0].arrayBuffer(),{type:'array'});
+    location.hash='#order=12';await wait(300);
+    quickSetStatus(12,'ready');
+    return {st,pl,sheets:wb.SheetNames.length,status:orders[1].status};
+  });
+  assert.ok(r.st.includes('Pichhla Rs.70,000')&&r.st.includes('Rs.60,000'),r.st);
+  assert.ok(r.pl.includes('Rs.25,000')&&r.pl.includes('Rs.17,000'),r.pl);
+  assert.strictEqual(r.sheets,7);
+  assert.strictEqual(r.status,'ready');
+});
+
+(async()=>{
+  const server=await serve();
+  const url=`http://localhost:${server.address().port}/index.html`;
+  const browser=await chromium.launch();
+  let failed=0;
+  for(const t of tests){
+    const ctx=await browser.newContext({viewport:{width:390,height:844}});
+    await ctx.addInitScript(MOCK_DB);
+    const page=await ctx.newPage();
+    const errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+    try{
+      await page.goto(url);
+      await page.waitForFunction(()=>window.HKStore&&HKStore.ok!==undefined&&document.getElementById('statsArea')?.innerHTML);
+      await page.waitForTimeout(300);
+      await t.fn(page);
+      assert.deepStrictEqual(errors,[],'page errors');
+      console.log('✔',t.name);
+    }catch(e){
+      failed++;
+      console.log('✘',t.name,'\n ',e.message);
+    }
+    await ctx.close();
+  }
+  await browser.close();server.close();
+  console.log(failed?`${failed} failed`:`all ${tests.length} browser tests passed`);
+  process.exit(failed?1:0);
+})();
