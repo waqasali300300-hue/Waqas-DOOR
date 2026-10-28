@@ -170,6 +170,23 @@ test('monthly statement, profit report, Excel and QR order screen',async page=>{
   assert.strictEqual(r.status,'ready');
 });
 
+test('home screen shows key numbers and what needs attention',async page=>{
+  const r=await page.evaluate(async()=>{
+    let d=new Date().toISOString().slice(0,10);
+    parties=[{id:1,name:'Ali'}];
+    orders=[{id:11,orderNo:'ORD-1',partyId:1,date:d,orderTotal:85000,netProfit:22000,payments:[{id:1,amount:5000,date:d}],status:'ready'}];
+    cheques=[{id:5,status:'pending',dueDate:d,amount:40000,type:'received',partyId:1}];
+    saveAll();renderAll();
+    return {kpis:document.getElementById('hmKpis').innerText,att:document.getElementById('hmAttention').innerText,
+      tiles:document.querySelectorAll('#tabHome .hm-kpi,#tabHome .hm-act').length,
+      homeHeight:document.getElementById('tabHome').scrollHeight};
+  });
+  assert.ok(r.kpis.includes('Rs.85,000')&&r.kpis.includes('Rs.80,000')&&r.kpis.includes('Rs.22,000'),r.kpis);
+  assert.ok(r.att.includes('cheque')&&r.att.includes('tayyar'),r.att);
+  assert.strictEqual(r.tiles,8);
+  assert.ok(r.homeHeight<1600,'home too long: '+r.homeHeight);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;

@@ -4,7 +4,14 @@
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   function monthKeyNow(){let d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
   function monthLabel(key){let [y,m]=key.split('-');return MONTHS[parseInt(m)-1]+' '+y;}
-  function inMonth(date,key){return String(date||'').slice(0,7)===key;}
+  function inMonth(date,key){
+    let k=String(date||'').slice(0,7);
+    if(key==='all')return !!k;
+    if(key==='year')return k.slice(0,4)===String(new Date().getFullYear());
+    if(key==='q3'){let d=new Date();let from=new Date(d.getFullYear(),d.getMonth()-2,1);return k>=from.getFullYear()+'-'+String(from.getMonth()+1).padStart(2,'0')&&k<=monthKeyNow();}
+    return k===key;
+  }
+  function periodLabel(key){return {all:'Shuru se ab tak',year:'Is saal ('+new Date().getFullYear()+')',q3:'Pichhle 3 mahine'}[key]||monthLabel(key);}
   function num(v){return parseFloat(v)||0;}
   function monthOptions(selected){
     let out=[],d=new Date();
@@ -139,8 +146,9 @@
     let mo=orders.filter(o=>inMonth(o.date,key));
     let sale=mo.reduce((s,o)=>s+num(o.orderTotal),0);
     let wood=mo.reduce((s,o)=>s+num(o.totalWoodCost),0);
-    let labour=mo.reduce((s,o)=>s+num(o.totalLabour),0);
-    let gross=sale-wood-labour;
+    // Same profit the order screen shows (order's own net profit); labour is what's left.
+    let gross=mo.reduce((s,o)=>s+(o.netProfit!=null?num(o.netProfit):num(o.orderTotal)-num(o.totalWoodCost)-num(o.totalLabour)),0);
+    let labour=sale-wood-gross;
     let cats={};
     expenses.filter(e=>inMonth(e.date,key)).forEach(e=>{let c=e.category||'Misc';cats[c]=(cats[c]||0)+num(e.amount);});
     let kharcha=Object.values(cats).reduce((a,b)=>a+b,0);
@@ -170,16 +178,18 @@
     ensureModal('hkProfitModal','📊 Munafa / Nuqsan');
     let r=profitReport(plMonth);
     document.getElementById('hkProfitModalBody').innerHTML=`
-      <select class="form-input" style="margin-bottom:8px;" onchange="openProfitReport(this.value)">${monthOptions(plMonth)}</select>
+      <select class="form-input" style="margin-bottom:8px;" onchange="openProfitReport(this.value)">${['q3','year','all'].map(k=>`<option value="${k}" ${k===plMonth?'selected':''}>${periodLabel(k)}</option>`).join('')}${monthOptions(plMonth)}</select>
       <div style="font-size:11px;">${plRows(r)}</div>
       <p style="font-size:8px;color:var(--gray-500);margin-top:6px;">Munafa = Sale − lakri − labour − kharche. Khareed (stock) alag dikhaya hai taake do dafa na gina jaye.</p>
       <button class="btn btn-gold btn-sm" style="margin-top:8px;" onclick="downloadProfitPDF()">📄 PDF / Share</button>`;
     show('hkProfitModal');
   };
   window.downloadProfitPDF=function(){
-    let html=`<div id="hkPlPdf" style="font-family:sans-serif;padding:24px;background:#fff;color:#111;font-size:14px;">${pdfHeader('Munafa / Nuqsan — '+monthLabel(plMonth),'')}${plRows(profitReport(plMonth))}</div>`;
+    let html=`<div id="hkPlPdf" style="font-family:sans-serif;padding:24px;background:#fff;color:#111;font-size:14px;">${pdfHeader('Munafa / Nuqsan — '+periodLabel(plMonth),'')}${plRows(profitReport(plMonth))}</div>`;
     pdfFromHTML(html,'hkPlPdf',`Munafa_${plMonth}.pdf`);
   };
+
+  window.openPLStatementModal=function(){window.openProfitReport();};
 
   // ── Excel export ──
   function loadXlsx(){
@@ -255,7 +265,7 @@
 
   // ── Menu entries ──
   function addMenu(){
-    let anchor=document.getElementById('hkActivityDrawerBtn')||[...document.querySelectorAll('.drawer-item')].find(b=>(b.getAttribute('onclick')||'').includes('openUserSwitcher'));
+    let anchor=document.querySelector('.drawer-item[data-tab="tabReports"]');
     if(!anchor||document.getElementById('hkStmtDrawerBtn'))return;
     [['hkExcelDrawerBtn','📗','Excel Export','exportExcel()'],['hkPlDrawerBtn','📊','Munafa / Nuqsan Report','openProfitReport()'],['hkStmtDrawerBtn','📅','Mahana Statement (Parties)','openStatements()']].forEach(([id,icon,label,fn])=>{
       let b=document.createElement('button');b.className='drawer-item';b.id=id;
