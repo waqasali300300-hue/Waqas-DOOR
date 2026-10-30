@@ -1267,7 +1267,7 @@ function renderDoorRow(d,idx){
     <div class="door-fields">
       <div><div class="field-label">Size</div><input class="field-input" id="doorSize_${idx}" value="${esc(d.size||'')}" placeholder="45x75" onchange="updateDoor(${idx})"></div>
       <div><div class="field-label">Qty</div><input class="field-input" type="number" id="doorQty_${idx}" value="${d.qty||1}" min="1" onchange="updateDoor(${idx})"></div>
-      <div><div class="field-label">Rate / door</div><input class="field-input" type="number" id="doorRate_${idx}" value="${d.rate||0}" step="1" onchange="updateDoor(${idx})"></div>
+      <div><div class="field-label">Rate / sq.ft</div><input class="field-input" type="number" id="doorRate_${idx}" value="${d.rate||0}" step="1" onchange="updateDoor(${idx})"></div>
     </div>
     ${doorDesigns.length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:6px;">${doorDesigns.map(dz=>`<button type="button" class="btn btn-outline btn-xs" onclick="appendDesignToDoorSize(${idx},'${esc(dz).replace(/'/g,"\\'")}')">${esc(dz)}</button>`).join('')}</div>`:''}
     <div class="door-fields-2">
@@ -1275,7 +1275,7 @@ function renderDoorRow(d,idx){
       <div><div class="field-label">Height (in)</div><input class="field-input" type="number" id="doorH_${idx}" value="${d.h||0}" step="0.1" onchange="updateDoor(${idx})"></div>
       <div><div class="field-label">Thickness</div><input class="field-input" type="number" id="doorThick_${idx}" value="${d.thickness||defaultThickness}" step="0.1" onchange="updateDoor(${idx})"></div>
       <div><div class="field-label">Wood Type</div><select class="field-select" id="doorWood_${idx}" onchange="updateDoor(${idx})">${woodOpts}</select></div>
-      <div><div class="field-label">Labour / door</div><input class="field-input" type="number" id="doorLabour_${idx}" value="${labourPerDoor}" step="1" onchange="updateDoor(${idx})"></div>
+      <div><div class="field-label">Labour (is line ki)</div><input class="field-input" type="number" id="doorLabour_${idx}" value="${labourPerDoor}" step="1" onchange="updateDoor(${idx})"></div>
     </div>
     <div class="door-calc" id="doorCalc_${idx}">${renderDoorCalcInner(d)}</div>
   </div>`;
@@ -5297,7 +5297,7 @@ async function init(){
     if(o.doors){
       let totalLabour=o.doors.reduce((s,d)=>s+(parseFloat(d.labourPerDoor)||0),0);
       o.totalLabour=totalLabour;
-      o.netProfit=o.orderTotal-(o.totalWoodCost||0)-totalLabour;
+      o.netProfit=o.orderTotal-(o.totalWoodCost||0)-totalLabour-(o.materialCost||0);
     }
   });
   applyTheme(getSavedTheme());
