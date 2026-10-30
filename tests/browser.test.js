@@ -231,6 +231,31 @@ test('auto system: rate, labour, karigar record, stock, advance, cash book, chal
   assert.strictEqual(r.labLeft,0);
 });
 
+test('old orders: advance becomes a payment entry after owner confirms',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Ali'}];
+    orders=[
+      {id:1,orderNo:'ORD-1',partyId:1,date:'2025-01-05',orderTotal:100000,advancePayment:20000,payments:[{id:11,amount:30000,date:'2025-02-01'}]},
+      {id:2,orderNo:'ORD-2',partyId:1,date:'2025-01-06',orderTotal:50000,advancePayment:10000,payments:[]},
+      {id:3,orderNo:'ORD-3',partyId:1,date:'2025-01-07',orderTotal:40000,advancePayment:5000,payments:[{id:12,amount:5000,date:'2025-01-07'}]}];
+    businessProfile.advanceFixDone=false;
+    let before=orders.map(getOrderTotalPaid);
+    openAdvanceFix();await wait(50);
+    let text=document.getElementById('hkAdvFixBody').innerText;
+    confirmAdvanceFix();
+    let after=orders.map(getOrderTotalPaid);
+    let ledger=buildPartyLedgerEntries(parties[0]).filter(e=>e.credit===10000).length;
+    let again=(openAdvanceFix(),orders.map(o=>o.payments.length));
+    return {before,after,ledger,again,text};
+  });
+  assert.deepStrictEqual(r.before,[30000,10000,5000]);
+  assert.deepStrictEqual(r.after,[50000,10000,5000]);
+  assert.strictEqual(r.ledger,1);
+  assert.deepStrictEqual(r.again,[2,1,1]);
+  assert.ok(r.text.includes('ORD-1')&&!r.text.includes('ORD-3'),r.text);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
