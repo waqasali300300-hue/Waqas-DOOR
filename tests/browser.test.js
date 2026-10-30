@@ -302,6 +302,11 @@ test('laptop: menu stays open on the left, no bottom bar',async page=>{
   assert.strictEqual(r.drawerX,0);
   assert.strictEqual(r.navShown,false);
   assert.strictEqual(r.scrollX,false);
+  // Opening another screen must hide Home (laptop grid once kept it visible).
+  const tabs=await page.evaluate(()=>{switchTab('tabOrders');
+    let home=getComputedStyle(document.getElementById('tabHome')).display,orders=getComputedStyle(document.getElementById('tabOrders')).display;
+    switchTab('tabHome');return {home,orders,homeBack:getComputedStyle(document.getElementById('tabHome')).display};});
+  assert.deepStrictEqual(tabs,{home:'none',orders:'block',homeBack:'grid'});
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(600); // drawer slides out on phone
   const m=await page.evaluate(()=>({drawerX:document.getElementById('drawerNav').getBoundingClientRect().right,
