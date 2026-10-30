@@ -46,6 +46,13 @@
           let old=null;try{old=localStorage.getItem('ww_data');}catch(e){}
           if(old){await HKStore.set('ww_data',old);raw=old;}
         }
+        // Keep a second copy of the cloud settings, so this device stays joined to the
+        // other devices even if the browser's small storage gets cleared.
+        try{
+          let cfg=localStorage.getItem('ww_fb_cfg');
+          if(cfg)await HKStore.set('ww_fb_cfg',cfg);
+          else{let saved=await HKStore.get('ww_fb_cfg');if(saved)localStorage.setItem('ww_fb_cfg',saved);}
+        }catch(e){}
         // Ask the browser not to clear our data when the phone is low on space.
         try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
         return raw;
