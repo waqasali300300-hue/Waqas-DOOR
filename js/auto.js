@@ -228,7 +228,6 @@
     window[openName]=function(id){
       let r=origOpen.apply(this,arguments);
       try{
-        if(!cfg().cashbook)return r;
         let anchor=document.getElementById(anchorId)?.closest('.form-group');
         if(anchor&&!document.getElementById(selId)){
           let rec=id?window.hkData()[arrName].find(x=>x.id===id):null;
@@ -255,18 +254,20 @@
 
   // ── Keeping everything in step on every save ──
   function reconcileCashbook(){
-    let a=cfg();if(!a.cashbook)return;
+    let a=cfg();
     let want=new Map();
-    expenses.forEach(e=>{
+    // Other modules (supplier payments…) add their own cash book lines here.
+    (window.hkCashbookSources||[]).forEach(fn=>{try{fn(want);}catch(e){console.warn('Cash book source:',e);}});
+    if(a.cashbook)expenses.forEach(e=>{
       if(!isNew(e)||e.account==='none'||num(e.amount)<=0)return;
       want.set('exp:'+e.id,{type:'withdrawal',account:e.account||a.defaultAccount,amount:num(e.amount),date:e.date,description:'Kharcha: '+(e.description||'')});
     });
-    purchases.forEach(p=>{
+    if(a.cashbook)purchases.forEach(p=>{
       let amt=num(p.total)||num(p.qty)*num(p.rate);
       if(!isNew(p)||p.account==='udhaar'||amt<=0)return;
       want.set('pur:'+p.id,{type:'withdrawal',account:p.account||a.defaultAccount,amount:amt,date:p.date,description:`Khareed: ${p.item||''} (${getSupplierName(p.supplierId)})`});
     });
-    orders.forEach(o=>(o.payments||[]).forEach(p=>{
+    if(a.cashbook)orders.forEach(o=>(o.payments||[]).forEach(p=>{
       if(!p.autoAdvance||num(p.amount)<=0)return;
       want.set('adv:'+p.id,{type:'deposit',account:BANK_ACCOUNTS.includes(p.method)?p.method:a.defaultAccount,amount:num(p.amount),date:p.date,description:`Advance: ${o.orderNo} ${getPartyName(o.partyId)}`});
     }));

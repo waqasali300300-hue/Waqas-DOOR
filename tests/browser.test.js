@@ -256,6 +256,61 @@ test('old orders: advance becomes a payment entry after owner confirms',async pa
   assert.ok(r.text.includes('ORD-1')&&!r.text.includes('ORD-3'),r.text);
 });
 
+test('supplier khata, delivery alerts, receipt, karigar pay, day close, wood list',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    let d=new Date().toISOString().slice(0,10),past=new Date(Date.now()-3*864e5).toISOString().slice(0,10);
+    parties=[{id:1,name:'Ali',phone:'03001234567'}];karigars=[{id:7,name:'Rafiq'}];
+    suppliers=[{id:9,name:'Wood Co',phone:'03007654321'}];
+    woodTypes=[{id:1,name:'Kail',rate:300,openingStock:2}];
+    orders=[{id:11,orderNo:'ORD-1',partyId:1,date:past,deliveryDate:past,orderTotal:50000,status:'cutting',payments:[],doors:[{w:45,h:80,qty:2,woodId:1,thickness:1.5}]}];
+    labours=[{id:30,karigarId:7,orderId:11,totalCost:5000,paid:0,date:past},{id:31,karigarId:7,orderId:11,totalCost:3000,paid:0,date:d}];
+    saveAll();renderAll();
+    let att=document.getElementById('hmAttention').innerText;
+    openPurchaseModal();await wait(30);
+    document.getElementById('purchaseSupplier').value='9';document.getElementById('purchaseItem').value='Kail';
+    document.getElementById('purchaseQty').value='10';document.getElementById('purchaseRate').value='3000';
+    document.getElementById('purAccount').value='udhaar';savePurchase();
+    let bal1=hkSupplierBalance(suppliers[0]),bankAfterUdhaar=bankTransactions.length;
+    openSupplierPayment(9);document.getElementById('supPayAmt').value='12000';saveSupplierPayment(9);
+    let bal2=hkSupplierBalance(suppliers[0]);
+    openPaymentModal(11);await wait(30);document.getElementById('payAmount').value='20000';addPayment();
+    let receipt=document.getElementById('hkReceiptModal').classList.contains('open');closeModal('hkReceiptModal');
+    openKarigarPay();document.getElementById('kpAmt_7').value='6000';payKarigar(7);closeModal('hkKarPayModal');
+    let paid=labours.map(l=>l.paid);
+    openDayClose();let day=document.getElementById('hkDayModalBody').innerText;closeModal('hkDayModal');
+    let short=hkWoodShort()[0].short;
+    return {att,bal1,bankAfterUdhaar,bal2,receipt,paid,day,short};
+  });
+  assert.ok(r.att.includes('late')&&r.att.includes('Lakri kam'),r.att);
+  assert.strictEqual(r.bal1,30000);
+  assert.strictEqual(r.bankAfterUdhaar,0);
+  assert.strictEqual(r.bal2,18000);
+  assert.ok(r.receipt);
+  assert.deepStrictEqual(r.paid,[5000,1000]);
+  assert.ok(r.day.includes('Rs.20,000')&&r.day.includes('Rs.18,000')&&r.day.includes('Rs.2,000'),r.day);
+  assert.ok(Math.abs(r.short-4.25)<0.01,'wood short '+r.short);
+});
+
+test('laptop: menu stays open on the left, no bottom bar',async page=>{
+  await page.setViewportSize({width:1366,height:768});
+  await page.waitForTimeout(200);
+  const r=await page.evaluate(()=>({
+    drawerX:document.getElementById('drawerNav').getBoundingClientRect().left,
+    navShown:getComputedStyle(document.querySelector('.bottom-nav')).display!=='none',
+    scrollX:document.documentElement.scrollWidth>window.innerWidth}));
+  assert.strictEqual(r.drawerX,0);
+  assert.strictEqual(r.navShown,false);
+  assert.strictEqual(r.scrollX,false);
+  await page.setViewportSize({width:390,height:844});
+  await page.waitForTimeout(600); // drawer slides out on phone
+  const m=await page.evaluate(()=>({drawerX:document.getElementById('drawerNav').getBoundingClientRect().right,
+    navShown:getComputedStyle(document.querySelector('.bottom-nav')).display!=='none',scrollX:document.documentElement.scrollWidth>window.innerWidth}));
+  assert.ok(m.drawerX<=0,'drawer hidden on phone');
+  assert.strictEqual(m.navShown,true);
+  assert.strictEqual(m.scrollX,false);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
