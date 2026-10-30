@@ -187,6 +187,50 @@ test('home screen shows key numbers and what needs attention',async page=>{
   assert.ok(r.homeHeight<1600,'home too long: '+r.homeHeight);
 });
 
+test('auto system: rate, labour, karigar record, stock, advance, cash book, challan',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Ali'}];karigars=[{id:7,name:'Rafiq'}];
+    inventory=[{id:50,name:'Kabza',qty:100,unit:'pcs',minStock:10,cost:150}];
+    priceList=[{id:60,size:'45x80 Mughleazam',rate:500}];doorDesigns=['Mughleazam'];
+    saveAll();
+    openAutoSettings();
+    document.getElementById('auLabourRate').value='60';document.getElementById('auDesign_0').value='80';
+    document.getElementById('auKarigar').value='7';document.getElementById('auMat_50').value='3';
+    saveAutoSettings();
+    openOrderModal();await wait(50);
+    document.getElementById('orderPartyId').value='1';
+    addDoorFromSize('45x80');
+    document.getElementById('doorSize_0').value='45x80 Mughleazam';updateDoor(0);
+    document.getElementById('doorQty_0').value='2';updateDoor(0);
+    document.getElementById('orderAdvance').value='20000';
+    saveOrder();await wait(50);closeModal('paymentReceiptModal');
+    let o=orders[0],lab=labours.find(l=>l.orderId===o.id);
+    let out={rate:o.doors[0].rate,labour:o.totalLabour,lab:lab&&lab.totalCost,k:lab&&lab.karigarId,stock:inventory[0].qty,
+      profit:o.netProfit,expected:25000-o.totalWoodCost-4000-900,paid:getOrderTotalPaid(o),bank:bankTransactions.length};
+    openExpenseModal();await wait(30);
+    document.getElementById('expDesc').value='Bijli';document.getElementById('expAmount').value='5000';saveExpense();
+    out.bankAfterExpense=bankTransactions.length;
+    generateChallan(o.id);await wait(200);
+    out.status=o.status;
+    deleteOrder(o.id);await wait(50);customConfirmOk();await wait(100);
+    out.stockBack=inventory[0].qty;out.labLeft=labours.length;
+    return out;
+  });
+  assert.strictEqual(r.rate,500);
+  assert.strictEqual(r.labour,4000);
+  assert.strictEqual(r.lab,4000);
+  assert.strictEqual(r.k,7);
+  assert.strictEqual(r.stock,94);
+  assert.strictEqual(r.profit,r.expected);
+  assert.strictEqual(r.paid,20000);
+  assert.strictEqual(r.bank,1);
+  assert.strictEqual(r.bankAfterExpense,2);
+  assert.strictEqual(r.status,'delivered');
+  assert.strictEqual(r.stockBack,100);
+  assert.strictEqual(r.labLeft,0);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
