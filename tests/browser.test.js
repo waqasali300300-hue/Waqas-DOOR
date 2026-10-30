@@ -345,11 +345,18 @@ test('cloud setup: pasting Firebase\'s whole code fills the four fields',async p
     openFbSetup();
     let box=document.getElementById('fb_linkCode');box.value=snippet;box.dispatchEvent(new Event('input'));
     let filled=['fb_apiKey','fb_authDomain','fb_projectId','fb_appId'].map(i=>document.getElementById(i).value);
+    // The window is taller than a phone: it must scroll so Connect can be reached.
+    let ov=document.getElementById('fbSetupOverlay');
+    let connect=[...ov.querySelectorAll('button')].find(b=>b.textContent.includes('Connect'));
+    connect.scrollIntoView({block:'center'});
+    let cr=connect.getBoundingClientRect();
+    let reach=cr.top>=0&&cr.bottom<=innerHeight;
     skipFirebaseSetup();
-    return {filled,bad:hkReadFirebaseSnippet('kuch bhi')};
+    return {filled,bad:hkReadFirebaseSnippet('kuch bhi'),reach};
   });
   assert.deepStrictEqual(r.filled,['AIzaSyB-abc_123','hk.firebaseapp.com','hk-doors','1:99:web:ab12']);
   assert.strictEqual(r.bad,null);
+  assert.ok(r.reach,'Connect button reachable on phone');
 });
 
 (async()=>{
