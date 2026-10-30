@@ -316,6 +316,29 @@ test('laptop: menu stays open on the left, no bottom bar',async page=>{
   assert.strictEqual(m.scrollX,false);
 });
 
+test('laptop and phone with different parties both end up with all parties',async page=>{
+  const r=await page.evaluate(async()=>{
+    db=__mockDb();cloudEnabled=true;
+    // Laptop: has its own party, joins the cloud first
+    _syncBaseLoaded=true;_syncBase=null;parties=[{id:101,name:'Laptop Party'}];orders=[];
+    await syncNow();
+    let laptopCloud=JSON.parse(JSON.stringify(__cloud.erp.hk_main_user));
+    // Phone: different local party, joins the same cloud
+    _syncBase=null;parties=[{id:202,name:'Mobile Party'}];
+    await syncNow();
+    let phone=parties.map(p=>p.name).sort();
+    // Laptop syncs again from the state it had
+    _syncBase=laptopCloud;parties=[{id:101,name:'Laptop Party'}];
+    await syncNow();
+    let laptop=parties.map(p=>p.name).sort();
+    let code=hkLinkCode.read('x '+(localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'k',authDomain:'d',projectId:'p',appId:'a',email:'e@x.com'})),hkLinkCode.make()));
+    return {phone,laptop,code};
+  });
+  assert.deepStrictEqual(r.phone,['Laptop Party','Mobile Party']);
+  assert.deepStrictEqual(r.laptop,['Laptop Party','Mobile Party']);
+  assert.deepStrictEqual(r.code,{apiKey:'k',authDomain:'d',projectId:'p',appId:'a',email:'e@x.com'});
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
