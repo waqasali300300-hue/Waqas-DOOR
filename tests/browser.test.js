@@ -376,6 +376,39 @@ test('join link from one device opens Cloud Setup filled on the other',async pag
   assert.deepStrictEqual(r,{filled:['AIzaJ','hkw-doors','owner@gmail.com'],hashGone:true});
 });
 
+test('Reset All Data empties every joined device and keeps them connected',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'k',authDomain:'d',projectId:'hkw-doors',appId:'a',email:'e@x.com'}));
+    db=__mockDb();cloudEnabled=true;_syncBaseLoaded=true;_syncBase=null;
+    parties=[{id:1,name:'Ali'},{id:2,name:'Bilal'}];orders=[{id:9,orderNo:'ORD-1',partyId:1,date:'2026-10-01',orderTotal:5,payments:[]}];
+    businessProfile.name='HK TEST';
+    await syncNow();
+    let phoneBase=JSON.parse(JSON.stringify(__cloud.erp.hk_main_user));
+    // Laptop resets
+    resetAllData();await wait(50);customConfirmOk();await wait(300);await syncNow();
+    let cloudAfter={parties:__cloud.erp.hk_main_user.parties.length,orders:__cloud.erp.hk_main_user.orders.length};
+    let keptCfg=!!localStorage.getItem('ww_fb_cfg'),keptName=businessProfile.name;
+    // Phone (same data as before) syncs and gets emptied too
+    _syncBase=phoneBase;parties=JSON.parse(JSON.stringify(phoneBase.parties));orders=JSON.parse(JSON.stringify(phoneBase.orders));
+    await syncNow();
+    let phone={parties:parties.length,orders:orders.length};
+    let backups=(await HKStore.keys()).filter(k=>String(k).includes('reset')).length;
+    // Cloud settings come back from the second copy if browser storage is wiped
+    await HKStore.set('ww_fb_cfg',localStorage.getItem('ww_fb_cfg'));
+    localStorage.removeItem('ww_fb_cfg');
+    await HKStore.boot();
+    let restored=JSON.parse(localStorage.getItem('ww_fb_cfg')||'null');
+    return {cloudAfter,keptCfg,keptName,phone,backups,restored:restored&&restored.projectId};
+  });
+  assert.deepStrictEqual(r.cloudAfter,{parties:0,orders:0});
+  assert.strictEqual(r.keptCfg,true);
+  assert.strictEqual(r.keptName,'HK TEST');
+  assert.deepStrictEqual(r.phone,{parties:0,orders:0});
+  assert.ok(r.backups>=1,'backup before reset');
+  assert.strictEqual(r.restored,'hkw-doors');
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;

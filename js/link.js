@@ -154,4 +154,36 @@
   window.addEventListener('hashchange',handleJoinLink);
   document.addEventListener('hk:ready',()=>{addLinkBox();renderCloudBanner();handleJoinLink();});
   window.hkLinkCode={make:makeCode,read:readCode};
+
+  // ── Reset All Data, without breaking the link between devices ──
+  // Before: it wiped all browser storage, cloud settings included, so the device
+  // dropped off the cloud (and the cloud kept the old data). Now it empties the
+  // business records only and syncs that, so every joined device is emptied too
+  // and all of them stay connected. Settings, company profile, PIN, staff, rate
+  // list and wood types are kept. A backup is saved first so it can be undone.
+  const RESET_LISTS=['parties','orders','labours','expenses','inventory','purchases','suppliers','bankTransactions','karigars','quotations','cheques','karigarAttendance','deletedItems','activityLog','orderTemplates'];
+  async function backupBeforeReset(){
+    if(!window.HKStore||!HKStore.ok)return;
+    let now=new Date();
+    let key='ww_autobackup_'+now.toISOString().slice(0,10)+' reset '+now.toTimeString().slice(0,5);
+    try{await HKStore.set(key,JSON.stringify({savedAt:now.toISOString(),data:getDataSnapshot()}));}catch(e){}
+  }
+  window.resetAllData=function(){
+    let joined=!!getFirebaseCfg();
+    customConfirm(
+      joined
+        ?'Sab parties, orders, khata, labour, kharcha, stock aur bank entries mita di jayengi — is device se aur juray hue doosre devices (laptop/mobile) se bhi. Cloud se judav qaim rahega. Settings, PIN aur Rate List rahenge. (Mitane se pehle backup ban jayega — Settings → Auto Backup se wapas la sakte hain.)'
+        :'Sab parties, orders, khata, labour, kharcha, stock aur bank entries mita di jayengi. Settings, PIN aur Rate List rahenge. (Mitane se pehle backup ban jayega.)',
+      async()=>{
+        await backupBeforeReset();
+        parties=[];orders=[];labours=[];expenses=[];inventory=[];purchases=[];suppliers=[];bankTransactions=[];
+        karigars=[];quotations=[];cheques=[];karigarAttendance=[];deletedItems=[];activityLog=[];orderTemplates=[];
+        saveAll();
+        if(typeof cloudEnabled!=='undefined'&&cloudEnabled&&typeof syncNow==='function')syncNow();
+        closeModal('settingsModal');
+        updateKhataFilter();renderAll();
+        showToast(joined?'🗑 Sab data mit gaya — doosre devices par bhi mit jayega':'🗑 Sab data mit gaya');
+      },{danger:true,okText:'Sab Mita Dein',title:'⚠️ Reset All Data'});
+  };
+  window.hkResetLists=RESET_LISTS;
 })();
