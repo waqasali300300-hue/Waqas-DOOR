@@ -339,6 +339,19 @@ test('laptop and phone with different parties both end up with all parties',asyn
   assert.deepStrictEqual(r.code,{apiKey:'k',authDomain:'d',projectId:'p',appId:'a',email:'e@x.com'});
 });
 
+test('cloud setup: pasting Firebase\'s whole code fills the four fields',async page=>{
+  const r=await page.evaluate(async()=>{
+    const snippet='import { initializeApp } from "firebase/app";\nconst firebaseConfig = {\n  apiKey: "AIzaSyB-abc_123",\n  authDomain: "hk.firebaseapp.com",\n  projectId: "hk-doors",\n  storageBucket: "hk.firebasestorage.app",\n  messagingSenderId: "99",\n  appId: "1:99:web:ab12"\n};';
+    openFbSetup();
+    let box=document.getElementById('fb_linkCode');box.value=snippet;box.dispatchEvent(new Event('input'));
+    let filled=['fb_apiKey','fb_authDomain','fb_projectId','fb_appId'].map(i=>document.getElementById(i).value);
+    skipFirebaseSetup();
+    return {filled,bad:hkReadFirebaseSnippet('kuch bhi')};
+  });
+  assert.deepStrictEqual(r.filled,['AIzaSyB-abc_123','hk.firebaseapp.com','hk-doors','1:99:web:ab12']);
+  assert.strictEqual(r.bad,null);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;

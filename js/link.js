@@ -59,24 +59,46 @@
   };
 
   // ── On the new device: paste the code in Cloud Setup ──
-  window.applyLinkCode=function(){
+  // Firebase's own snippet, as shown after "Register app" (apiKey: "…", …).
+  // Works with or without quotes around the names, and with JSON too.
+  function readFirebaseSnippet(text){
+    let t=String(text||'');
+    let get=k=>{let m=t.match(new RegExp('["\']?'+k+'["\']?\\s*[:=]\\s*["\'`]([^"\'`\\s]+)["\'`]'));return m?m[1].trim():'';};
+    let d={apiKey:get('apiKey'),authDomain:get('authDomain'),projectId:get('projectId'),appId:get('appId')};
+    if(!d.apiKey||!d.projectId)return null;
+    if(!d.authDomain)d.authDomain=d.projectId+'.firebaseapp.com';
+    return d;
+  }
+
+  // One box takes either a link code from another device or Firebase's snippet.
+  window.applyLinkCode=function(quiet){
     let el=document.getElementById('fb_linkCode');
-    let d=readCode(el&&el.value);
-    if(!d){showToast('⚠️ Code theek nahi — poora code paste karein (HKDOOR: se shuru)');return;}
-    let set=(id,v)=>{let x=document.getElementById(id);if(x)x.value=v||'';};
-    set('fb_apiKey',d.apiKey);set('fb_authDomain',d.authDomain);set('fb_projectId',d.projectId);set('fb_appId',d.appId);set('fb_email',d.email);
+    let text=el&&el.value;
+    let d=readCode(text),fromSnippet=false;
+    if(!d){d=readFirebaseSnippet(text);fromSnippet=!!d;}
+    if(!d){if(!quiet)showToast('⚠️ Code samajh nahi aaya — Firebase ka poora code ya HKDOOR code paste karein');return false;}
+    let set=(id,v)=>{let x=document.getElementById(id);if(x&&v!==undefined)x.value=v||'';};
+    set('fb_apiKey',d.apiKey);set('fb_authDomain',d.authDomain);set('fb_projectId',d.projectId);set('fb_appId',d.appId);
+    if(d.email)set('fb_email',d.email);
     if(typeof updateFbRulesHint==='function')updateFbRulesHint();
-    showToast('✅ Code lag gaya — ab password likh kar Connect dabayein');
-    document.getElementById('fb_password')?.focus();
+    let msg=document.getElementById('fb_linkMsg');
+    if(msg)msg.innerHTML=fromSnippet
+      ?'✅ 4 cheezein bhar gayin. Ab neeche <b>Email</b> aur <b>Password</b> likhein, Step 5 ke Rules Publish karein, phir Connect.'
+      :'✅ Code lag gaya. Ab <b>wahi password</b> likh kar Connect dabayein.';
+    showToast(fromSnippet?'✅ Firebase code se 4 khane bhar gaye':'✅ Code lag gaya — password likh kar Connect');
+    (fromSnippet&&!document.getElementById('fb_email')?.value?document.getElementById('fb_email'):document.getElementById('fb_password'))?.focus();
+    return true;
   };
+  window.hkReadFirebaseSnippet=readFirebaseSnippet;
   function addLinkBox(){
     let first=document.querySelector('#fbSetupOverlay .fb-step');
     if(!first||document.getElementById('fb_linkCode'))return;
     first.insertAdjacentHTML('beforebegin',`<div class="fb-step" style="border:1px dashed rgba(255,255,255,.35);">
-      <strong>📲 Doosre device par pehle se setup hai?</strong> Wahan ☰ → Settings → "Doosra device jorein" se code lein aur yahan paste karein:
-      <textarea class="fb-input" id="fb_linkCode" placeholder="HKDOOR:..." style="height:52px;margin-top:6px;"></textarea>
+      <strong>📋 Code yahan paste karein</strong> — inn mein se koi bhi:
+      <div style="font-size:9px;opacity:.85;margin-top:3px;">• Firebase ka <b>poora code</b> (Register app ke baad jo dikhta hai — <i>const firebaseConfig = {…}</i>)<br>• Ya doosre device ka <b>HKDOOR</b> code (☰ → Settings → Doosra device jorein)</div>
+      <textarea class="fb-input" id="fb_linkCode" placeholder="const firebaseConfig = { apiKey: ... }  ya  HKDOOR:..." style="height:70px;margin-top:6px;" oninput="applyLinkCode(true)"></textarea>
       <button class="btn btn-outline btn-xs" type="button" onclick="applyLinkCode()">✅ Code lagayein</button>
-      <div style="font-size:8.5px;opacity:.8;margin-top:4px;">Neeche ke Step 1–5 sirf pehli dafa (pehle device par) karne hain.</div></div>`);
+      <div id="fb_linkMsg" style="font-size:9px;margin-top:4px;"></div></div>`);
   }
 
   // ── Settings: button to show the code ──
