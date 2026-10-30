@@ -423,3 +423,13 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
 .hk-dlv.due{background:#fef3c7;color:#92400e;}
 .dark-mode .hk-dlv.late{background:#4a1d1d;color:#fca5a5;}
 .dark-mode .hk-dlv.due{background:#4a3a12;color:#fcd34d;}
+
+/* Cloud status on Home */
+.hm-cloud{font-size:11.5px;padding:9px 12px;border-radius:12px;margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:space-between;border:1px solid var(--border);}
+.hm-cloud.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0;}
+.hm-cloud.warn{background:#fffbeb;color:#92400e;border-color:#fde68a;}
+.hm-cloud.bad{background:#fef2f2;color:#991b1b;border-color:#fecaca;}
+.dark-mode .hm-cloud.ok{background:#0f2e22;color:#a7f3d0;}
+.dark-mode .hm-cloud.warn{background:#3a2e0e;color:#fde68a;}
+.dark-mode .hm-cloud.bad{background:#3a1414;color:#fecaca;}
+@media (min-width:1024px){#tabHome>#hmCloud{grid-column:1/-1;}}
