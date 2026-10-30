@@ -52,14 +52,17 @@
     let ready=orders.filter(o=>o.status==='ready');
     if(ready.length)items.push({icon:'🚚',tone:'info',text:`${ready.length} order tayyar — delivery baqi`,go:"switchTab('tabProduction')"});
     let kDue=labours.reduce((s,l)=>s+Math.max(0,num(l.totalCost)-num(l.paid)),0);
-    if(kDue>0)items.push({icon:'🔧',tone:'info',text:'Karigaron ko dena hai',amt:kDue,go:"switchTab('tabLabour')"});
+    if(kDue>0)items.push({icon:'🔧',tone:'info',text:'Karigaron ko dena hai',amt:kDue,go:window.openKarigarPay?'openKarigarPay()':"switchTab('tabLabour')"});
     let lowItems=inventory.filter(i=>num(i.minStock)>0&&num(i.qty)<=num(i.minStock));
     // Only woods that were ever stocked; "0 left" on a wood never bought isn't a warning.
-    let lowWood=woodTypes.filter(w=>{let r=getWoodStockRemaining(w);let stocked=(w.openingStock||0)>0||getWoodPurchasedCft(w.id)>0;return stocked&&r<=10;});
+    let lowWood=woodTypes.filter(w=>{let r=getWoodStockRemaining(w);let stocked=(w.openingStock||0)>0||getWoodPurchasedCft(w.id)>0;let shortListed=window.hkWoodShort&&hkWoodShort().some(x=>x.w.id===w.id&&x.short>0);return stocked&&r<=10&&!shortListed;});
     if(lowItems.length||lowWood.length){
       let names=[...lowItems.map(i=>i.name),...lowWood.map(w=>w.name)];
       items.push({icon:'📦',tone:'warn',text:`Stock kam: ${names.slice(0,3).join(', ')}${names.length>3?` +${names.length-3}`:''}`,go:lowWood.length&&!lowItems.length?'openWoodStockModal()':"switchTab('tabInventory')"});
     }
+    // Other modules add their own items (late deliveries, supplier dues…).
+    (window.hkAttentionSources||[]).forEach(fn=>{try{items.push(...fn());}catch(e){console.warn('Attention:',e);}});
+    items.sort((a,b)=>({bad:0,warn:1,info:2}[a.tone]??3)-({bad:0,warn:1,info:2}[b.tone]??3));
     document.getElementById('hmAttention').innerHTML=items.length?items.map(it=>`
       <button class="hm-row" onclick="${it.go}">
         <span class="hm-dot ${it.tone}">${it.icon}</span>

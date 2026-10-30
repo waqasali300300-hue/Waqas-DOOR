@@ -4513,7 +4513,9 @@ function openRawMaterialCalcModal(){
   }));
   let rows=woodTypes.map(w=>{
     let needed=neededByWood[w.id]||0;
-    let have=getWoodStockRemaining(w);
+    // Remaining stock already has every order taken out; add the pending ones back
+    // so "have" is the stock available for them (they were counted twice before).
+    let have=getWoodStockRemaining(w)+needed;
     let shortfall=needed-have;
     return{w,needed,have,shortfall};
   }).filter(r=>r.needed>0||r.have!==0);
