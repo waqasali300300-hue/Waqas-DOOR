@@ -421,6 +421,44 @@ test('install button: browser prompt when offered, help window otherwise',async 
   assert.deepStrictEqual(r,{help:true,shown:true,prompted:true,menu:true});
 });
 
+test('fingerprint opens the locked app (virtual authenticator)',async page=>{
+  const cdp=await page.context().newCDPSession(page);
+  await cdp.send('WebAuthn.enable');
+  await cdp.send('WebAuthn.addVirtualAuthenticator',{options:{protocol:'ctap2',transport:'internal',hasResidentKey:true,hasUserVerification:true,isUserVerified:true,automaticPresenceSimulation:true}});
+  const r=await page.evaluate(async()=>{
+    businessProfile.ownerPin='1234';saveAll();
+    await enrolFinger();
+    let enrolled=!!hkFinger.enrolledId();
+    lockApp();await new Promise(r=>setTimeout(r,1500));
+    return {enrolled,unlocked:!document.querySelector('.hk-pin-lock')};
+  });
+  assert.deepStrictEqual(r,{enrolled:true,unlocked:true});
+});
+
+test('udhaar limit warning, reminders, order summary, karigar report, import, voice, Urdu',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));let out={};
+    parties=[{id:1,name:'Ali Traders',phone:'03001234567',creditLimit:50000,openingBalance:40000}];
+    openOrderModal();await wait(50);document.getElementById('orderPartyId').value='1';addDoorFromSize('45x80');
+    saveOrder();await wait(50);
+    out.warned=document.getElementById('confirmModalMsg').textContent.includes('hadd');
+    customConfirmOk();await wait(120);closeModal('paymentReceiptModal');
+    out.saved=orders.length;
+    let opened=[];window.open=u=>{opened.push(u);return null;};
+    sendNextReminder();out.reminder=opened[0]&&opened[0].includes('wa.me/923001234567');
+    sendOrderSummary(orders[0].id);out.summary=decodeURIComponent(opened[1]||'').includes(orders[0].orderNo);
+    karigars=[{id:7,name:'Rafiq'}];labours=[{id:30,karigarId:7,orderId:orders[0].id,totalCost:3000,paid:1000,date:new Date().toISOString().slice(0,10)}];
+    openKarigarReport();out.report=document.getElementById('hkKarRepModalB').innerText.includes('Dena hai Rs.2,000');closeModal('hkKarRepModal');
+    out.import=importPartiesFromRows([{Naam:'Bilal Wood','Purana Baqaya':'25,000'},{Naam:'Ali Traders'}]);
+    let v=hkParseVoice('payment Bilal Wood 20 hazar');out.voice=[v.kind,v.amount,v.party&&v.party.name];
+    out.voiceUr=hkParseVoice('خرچہ بجلی ۵۰۰۰').amount;
+    toggleLanguage();await wait(150);
+    out.urdu=document.querySelector('.nav-btn[data-tab="tabOrders"]').innerText.includes('آرڈر');
+    return out;
+  });
+  assert.deepStrictEqual(r,{warned:true,saved:1,reminder:true,summary:true,report:true,import:{added:1,skipped:1},voice:['payment',20000,'Bilal Wood'],voiceUr:5000,urdu:true});
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
