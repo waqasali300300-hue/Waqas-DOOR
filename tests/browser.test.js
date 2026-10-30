@@ -409,6 +409,18 @@ test('Reset All Data empties every joined device and keeps them connected',async
   assert.strictEqual(r.restored,'hkw-doors');
 });
 
+test('install button: browser prompt when offered, help window otherwise',async page=>{
+  const r=await page.evaluate(async()=>{
+    installApp();let help=document.getElementById('hkInstallModal').classList.contains('open');closeModal('hkInstallModal');
+    let prompted=false;let ev=new Event('beforeinstallprompt');ev.prompt=()=>{prompted=true;};ev.userChoice=Promise.resolve({outcome:'accepted'});
+    window.dispatchEvent(ev);
+    let shown=getComputedStyle(document.getElementById('hkInstallHdr')).display!=='none';
+    document.getElementById('hkInstallHdr').click();await new Promise(r=>setTimeout(r,50));
+    return {help,shown,prompted,menu:!!document.getElementById('hkInstallDrawerBtn')};
+  });
+  assert.deepStrictEqual(r,{help:true,shown:true,prompted:true,menu:true});
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
