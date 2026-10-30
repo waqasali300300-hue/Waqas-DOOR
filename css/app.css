@@ -381,15 +381,39 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
   .drawer-overlay,.drawer-head .modal-close,.menu-btn,.bottom-nav{display:none !important;}
   .header{padding-left:24px;}
   .container{max-width:1180px;padding:18px 24px;zoom:1.15;}
-  .modal-box{zoom:1.12;}
+  .modal-box{zoom:1.12;max-height:calc(92vh / 1.12);}
+  .header-inner{max-width:none;}
   .active-user-badge{left:276px;}
   .drawer-item{font-size:12px;padding:9px 12px;}
-  #tabHome{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start;}
-  #tabHome>.hm-head,#tabHome>.hm-kpis,#tabHome>.hm-actions,#tabHome>.hm-more,#tabHome>[hidden]{grid-column:1/-1;}
+  /* Only the active Home tab is a grid; other tabs must stay hidden. */
+  #tabHome.active{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start;}
+  #tabHome>.hm-head,#tabHome>.hm-kpis,#tabHome>.hm-actions,#tabHome>.hm-more,#tabHome>[hidden],#tabHome>#hmDayLink{grid-column:1/-1;}
   .hm-actions{grid-template-columns:repeat(4,minmax(0,170px));}
   .hm-act{flex-direction:row;justify-content:center;gap:8px;padding:11px;}
   .hm-act span{font-size:16px;}
   .hk-kbd{display:inline-block;}
+  /* Card lists use the width: two or three cards per row. */
+  #ordersList,#productionList,#partiesList,#suppliersList,#labourList,#inventoryList,#expensesList,#purchasesList,#bankBookList,#recycleList,#khataContent{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:10px;align-items:start;}
+  #ordersList>*,#productionList>*,#partiesList>*,#suppliersList>*,#labourList>*,#inventoryList>*,#expensesList>*,#purchasesList>*,#bankBookList>*,#recycleList>*,#khataContent>*{margin-bottom:0;}
+  #ordersList>.empty-state,#productionList>.empty-state,#partiesList>.empty-state,#suppliersList>.empty-state,#labourList>.empty-state,#inventoryList>.empty-state,#expensesList>.empty-state,#purchasesList>.empty-state,#bankBookList>.empty-state,#recycleList>.empty-state,#hkSupTotal{grid-column:1/-1;}
+  /* Small labels and buttons read better on a laptop screen. */
+  .btn-xs{font-size:10px;padding:5px 10px;}
+  .btn-sm{font-size:11px;}
+  .form-input,.form-select,.form-textarea{font-size:12px;}
+  .form-label{font-size:10.5px;}
+}
+/* Full-HD and bigger screens: scale everything up so it isn't tiny. */
+@media (min-width:1600px){
+  body{padding-left:290px;}
+  .drawer{width:290px;}
+  .drawer-item{font-size:13.5px;padding:10px 14px;}
+  .container{max-width:1500px;zoom:1.35;}
+  .modal-box{zoom:1.3;max-height:calc(92vh / 1.3);}
+  .header{height:64px;}
+  .logo-text h1{font-size:17px;}
+  .hdr-btn{font-size:13px;padding:8px 14px;}
+  .active-user-badge{left:306px;}
 }
 .hk-kbd{display:none;font-size:9px;color:var(--gray-500);border:1px solid var(--border);border-radius:5px;padding:0 5px;margin-left:6px;font-family:var(--font-mono);}
 
