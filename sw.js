@@ -4,7 +4,7 @@
 // away; libraries and icons come from the saved copy.
 // Change CACHE_VERSION whenever files are added to APP_SHELL.
 
-const CACHE_VERSION = 'v9';
+const CACHE_VERSION = 'v10';
 const CACHE_NAME = 'hk-wood-doors-' + CACHE_VERSION;
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = [
