@@ -359,6 +359,23 @@ test('cloud setup: pasting Firebase\'s whole code fills the four fields',async p
   assert.ok(r.reach,'Connect button reachable on phone');
 });
 
+test('join link from one device opens Cloud Setup filled on the other',async page=>{
+  const link=await page.evaluate(async()=>{
+    localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'AIzaJ',authDomain:'hkw-doors.firebaseapp.com',projectId:'hkw-doors',appId:'1:2:web:3',email:'owner@gmail.com'}));
+    openLinkDevice();
+    let url=window._hkLinkCode;closeModal('hkLinkModal');
+    localStorage.removeItem('ww_fb_cfg');   // the other device has no setup yet
+    return {url,msg:window._hkLinkMsg};
+  });
+  assert.ok(link.url.includes('#join=')&&link.msg.includes(link.url),link.url);
+  await page.goto(link.url);
+  await page.waitForFunction(()=>document.getElementById('fbSetupOverlay')?.classList.contains('open'));
+  const r=await page.evaluate(()=>({
+    filled:['fb_apiKey','fb_projectId','fb_email'].map(i=>document.getElementById(i).value),
+    hashGone:!location.hash}));
+  assert.deepStrictEqual(r,{filled:['AIzaJ','hkw-doors','owner@gmail.com'],hashGone:true});
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;

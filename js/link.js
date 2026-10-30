@@ -36,26 +36,29 @@
       body.innerHTML=`<p style="font-size:12px;">Is device par abhi Cloud Setup nahi hua. Pehle ☰ → <b>Cloud Backup Setup</b> mein Firebase aur login bharein, phir yahan code milega.</p>
         <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;" onclick="closeModal('hkLinkModal');openFbSetup()">🔥 Cloud Setup kholein</button>`;
     }else{
-      window._hkLinkCode=code;
+      // A link that opens the app on the other device with Cloud Setup already filled in.
+      let url=location.origin+location.pathname+'#join='+encodeURIComponent(code);
+      window._hkLinkCode=url;
+      window._hkLinkMsg=`HK Doors app ko is device par jorne ke liye yeh link kholein, phir sirf password likh kar Connect dabayein:\n${url}`;
       body.innerHTML=`<ol style="font-size:12px;line-height:1.7;padding-left:18px;margin-bottom:10px;">
-          <li>Neeche wala code copy karein ya WhatsApp par khud ko bhejein.</li>
-          <li>Doosre device (laptop/mobile) par app kholein → ☰ → <b>Cloud Backup Setup</b>.</li>
-          <li>Wahan "Link code" mein paste karein, <b>wahi password</b> likhein → Connect.</li>
+          <li><b>💬 WhatsApp</b> dabayein aur yeh link khud ko bhej dein.</li>
+          <li>Doosre device (laptop / mobile) par WhatsApp mein us link par <b>click</b> karein — app khulegi aur sab khud bhar jayega.</li>
+          <li>Sirf <b>wahi password</b> likh kar <b>Connect</b> dabayein.</li>
         </ol>
-        <div id="hkLinkQR" style="display:flex;justify-content:center;margin:8px 0;"></div>
-        <textarea class="form-input" readonly style="font-size:10px;height:70px;font-family:var(--font-mono);">${esc(code)}</textarea>
-        <div style="display:flex;gap:6px;margin-top:8px;">
-          <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="copyLinkCode()">📋 Copy</button>
-          <button class="btn btn-success" style="flex:1;justify-content:center;" onclick="window.open('https://wa.me/?text='+encodeURIComponent(window._hkLinkCode),'_blank')">💬 WhatsApp</button>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="btn btn-success" style="flex:1;justify-content:center;" onclick="window.open('https://wa.me/?text='+encodeURIComponent(window._hkLinkMsg),'_blank')">💬 WhatsApp par bhejein</button>
+          <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="copyLinkCode()">📋 Link Copy</button>
         </div>
-        <p style="font-size:9.5px;color:var(--gray-500);margin-top:8px;">Code mein password nahi hota. Jis device par password likha jaye, wohi jud sakta hai.</p>`;
-      try{if(typeof QRCode!=='undefined')new QRCode(document.getElementById('hkLinkQR'),{text:code,width:170,height:170,correctLevel:QRCode.CorrectLevel?QRCode.CorrectLevel.L:undefined});}catch(e){}
+        <div id="hkLinkQR" style="display:flex;justify-content:center;margin:8px 0;"></div>
+        <p style="font-size:9.5px;color:var(--gray-500);text-align:center;">Doosre mobile ke camera se yeh QR scan bhi kar sakte hain.</p>
+        <p style="font-size:9.5px;color:var(--gray-500);margin-top:8px;">Link mein password nahi hota. Jis device par password likha jaye, wohi jud sakta hai.</p>`;
+      try{if(typeof QRCode!=='undefined')new QRCode(document.getElementById('hkLinkQR'),{text:url,width:170,height:170,correctLevel:QRCode.CorrectLevel?QRCode.CorrectLevel.L:undefined});}catch(e){}
     }
     if(!m.classList.contains('open'))openModal('hkLinkModal');
   };
   window.copyLinkCode=function(){
     let t=window._hkLinkCode||'';
-    (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>showToast('📋 Code copy ho gaya'),()=>showToast('⚠️ Copy nahi hua — khud select karein'));
+    (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>showToast('📋 Link copy ho gaya'),()=>showToast('⚠️ Copy nahi hua — khud select karein'));
   };
 
   // ── On the new device: paste the code in Cloud Setup ──
@@ -126,6 +129,29 @@
   let origRenderDashboard=window.renderDashboard;
   window.renderDashboard=function(){let r=origRenderDashboard.apply(this,arguments);try{renderCloudBanner();}catch(e){}return r;};
 
-  document.addEventListener('hk:ready',()=>{addLinkBox();renderCloudBanner();});
+  // Opened from a join link (#join=HKDOOR:…): fill Cloud Setup and ask only for the password.
+  function handleJoinLink(){
+    let m=location.hash.match(/^#join=(.+)$/);
+    if(!m)return;
+    let open=()=>{
+      if(document.querySelector('.hk-pin-lock')){setTimeout(open,500);return;}
+      let code='';try{code=decodeURIComponent(m[1]);}catch(e){code=m[1];}
+      history.replaceState(null,'',location.pathname+location.search);
+      let d=readCode(code);
+      if(!d){showToast('⚠️ Link poora nahi aaya — doosre device se dobara bhejein');return;}
+      let cur=getFirebaseCfg();
+      if(cloudEnabled&&cur&&cur.projectId===d.projectId){showToast('✅ Yeh device pehle se juda hua hai');return;}
+      openFbSetup();
+      let box=document.getElementById('fb_linkCode');
+      if(box){box.value=code;applyLinkCode(true);}
+      let msg=document.getElementById('fb_linkMsg');
+      if(msg)msg.innerHTML='✅ Sab bhar gaya. Neeche sirf <b>password</b> likh kar <b>Connect</b> dabayein.';
+      let pw=document.getElementById('fb_password');
+      if(pw){pw.scrollIntoView({block:'center'});setTimeout(()=>pw.focus(),300);}
+    };
+    open();
+  }
+  window.addEventListener('hashchange',handleJoinLink);
+  document.addEventListener('hk:ready',()=>{addLinkBox();renderCloudBanner();handleJoinLink();});
   window.hkLinkCode={make:makeCode,read:readCode};
 })();
