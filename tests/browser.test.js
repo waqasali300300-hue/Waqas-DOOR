@@ -517,6 +517,29 @@ test('bill photo, morning summary, online catalog publish and customer page',asy
   assert.ok(c.msg.includes('wa.me/923001112222')&&c.msg.includes('45x80 Mughleazam × 2')&&c.msg.includes('Bilal'),c.msg);
 });
 
+test('activity: one line per action, owner can delete a line or clear all; labour without karigar flagged',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Aziz bhai'}];karigars=[];
+    let a=hkAutoCfg();a.labourRate=60;saveAll();activityLog=[];
+    openOrderModal();await wait(50);document.getElementById('orderPartyId').value='1';addDoorFromSize('45x80');
+    saveOrder();await wait(80);closeModal('paymentReceiptModal');
+    let orderLines=activityLog.filter(x=>x.coll==='orders').map(x=>x.type);
+    let attention=document.getElementById('hmAttention').innerText;
+    let labName=getKarigarName(labours[0]&&labours[0].karigarId);
+    let first=activityLog[0].id,before=activityLog.length;
+    deleteActivityEntry(first);await wait(50);customConfirmOk();await wait(120);
+    let afterOne=activityLog.length;
+    clearActivityLog();await wait(50);customConfirmOk();await wait(120);
+    return {orderLines,attention,labName,before,afterOne,afterAll:activityLog.length};
+  });
+  assert.deepStrictEqual(r.orderLines,['add']);
+  assert.ok(r.attention.includes('karigar nahi chuna'),r.attention);
+  assert.strictEqual(r.labName,'Karigar nahi chuna');
+  assert.strictEqual(r.afterOne,r.before-1);
+  assert.strictEqual(r.afterAll,0);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;

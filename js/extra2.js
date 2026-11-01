@@ -229,3 +229,9 @@
   let z=window._hkCloudSize||0;
   return z>800000?[{icon:'☁️',tone:'warn',text:`Cloud ki jagah ${Math.round(z/10485.76)}% bhar gayi — purana data archive karne ke liye rabta karein`,go:'openSettingsModal()'}]:[];
 });
+
+// Labour saved without a karigar can't be paid or shown in a karigar's khata.
+(window.hkAttentionSources=window.hkAttentionSources||[]).push(()=>{
+  let n=labours.filter(l=>!karigars.some(k=>String(k.id)===String(l.karigarId))).length;
+  return n?[{icon:'👷',tone:'warn',text:`${n} labour record mein karigar nahi chuna — Labour mein ✏️ se chunein`,go:"switchTab('tabLabour')"}]:[];
+});

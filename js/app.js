@@ -541,7 +541,7 @@ function getDoorCft(d){
 function getDoorWoodCost(d){return getDoorCft(d)*getWoodRate(d.woodId);}
 function getSupplierName(id){return suppliers.find(s=>s.id==id)?.name||'Unknown';}
 function getOrderTotalPaid(o){if(!o)return 0;if(o.payments&&o.payments.length>0)return o.payments.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);return parseFloat(o.advancePayment)||0;}
-function getKarigarName(id){return karigars.find(k=>k.id==id)?.name||'Unknown';}
+function getKarigarName(id){return karigars.find(k=>k.id==id)?.name||(id==null||id===''?'Karigar nahi chuna':'Karigar (hata diya gaya)');}
 function numToWordsPK(num){
   num=Math.round(Math.abs(num||0));
   if(num===0)return'Zero';

@@ -49,15 +49,15 @@
       let before=last[coll]||new Map(),after=now[coll];
       after.forEach((v,id)=>{
         let b=before.get(id);
-        if(!b){changes.push({type:'add',coll,text:safeLabel(cfg.label,v.rec)});return;}
+        if(!b){changes.push({type:'add',coll,rid:id,text:safeLabel(cfg.label,v.rec)});return;}
         if(b.text===v.text)return;
         if(coll==='orders'){
           let delta=v.paid-b.paid;
-          if(delta>0){changes.push({type:'pay',coll,text:`${fmtRs(delta)} — ${safeLabel(cfg.label,v.rec)}`});return;}
+          if(delta>0){changes.push({type:'pay',coll,rid:id,text:`${fmtRs(delta)} — ${safeLabel(cfg.label,v.rec)}`});return;}
         }
-        changes.push({type:'edit',coll,text:safeLabel(cfg.label,v.rec)});
+        changes.push({type:'edit',coll,rid:id,text:safeLabel(cfg.label,v.rec)});
       });
-      before.forEach((v,id)=>{if(!after.has(id))changes.push({type:'del',coll,text:safeLabel(cfg.label,v.rec)});});
+      before.forEach((v,id)=>{if(!after.has(id))changes.push({type:'del',coll,rid:id,text:safeLabel(cfg.label,v.rec)});});
     }
     last=now;
     return changes;
@@ -69,7 +69,17 @@
     if(changes.length>MAX_PER_SAVE){
       changes=[{type:'bulk',coll:'',text:`${changes.length} tabdeeliyan ek saath`}];
     }
-    changes.forEach(c=>activityLog.push({id:newId(),at,user,type:c.type,coll:c.coll,text:c.text.slice(0,120)}));
+    // One save often triggers a second automatic save (auto labour, stock…). An
+    // 'edit' of the same record seconds after it was added or edited is the same
+    // action, so it isn't written twice.
+    let now=Date.now();
+    changes=changes.filter(c=>{
+      if(c.type!=='edit'||c.rid==null)return true;
+      let prev=null;
+      for(let i=activityLog.length-1;i>=0&&i>=activityLog.length-30;i--){let a=activityLog[i];if(a.coll===c.coll&&a.rid===c.rid){prev=a;break;}}
+      return !(prev&&(prev.type==='add'||prev.type==='edit')&&now-Date.parse(prev.at)<15000);
+    });
+    changes.forEach(c=>activityLog.push({id:newId(),at,user,type:c.type,coll:c.coll,rid:c.rid,text:c.text.slice(0,120)}));
     if(activityLog.length>MAX_ENTRIES){
       activityLog.sort((a,b)=>String(a.at).localeCompare(String(b.at)));
       activityLog.splice(0,activityLog.length-MAX_ENTRIES);
@@ -118,15 +128,33 @@
         <span style="width:42px;flex-shrink:0;color:var(--gray-500);font-size:9px;">${d.toLocaleTimeString('en-PK',{hour:'2-digit',minute:'2-digit'})}</span>
         <span style="flex:1;min-width:0;"><span style="color:${color};font-weight:700;">${t[0]} ${t[1]} ${cfg?cfg.icon+' '+cfg.name:''}</span><br><span style="word-break:break-word;">${esc(a.text)}</span></span>
         <span style="flex-shrink:0;font-size:9px;font-weight:700;">👤 ${esc(a.user)}</span>
+        <button class="btn btn-outline btn-xs" style="flex-shrink:0;padding:3px 7px;" title="Yeh line mitayein" onclick="deleteActivityEntry(${a.id})">🗑</button>
       </div>`);
     });
     document.getElementById('hkActivityBody').innerHTML=`
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button class="btn btn-danger btn-xs" onclick="clearActivityLog()">🗑 ${filterUser?esc(filterUser)+' ki sab lines':'Sab saaf karein'}</button></div>
       <select class="form-input" style="margin-bottom:6px;" onchange="openActivityLog(this.value)">
         <option value="">Sab users</option>
         ${users.map(u=>`<option value="${esc(u)}" ${u===filterUser?'selected':''}>${esc(u)}</option>`).join('')}
       </select>
       ${rows.length?rows.join(''):'<div class="empty-state"><div class="e-icon">📜</div><p>Abhi koi record nahi — ab se har entry yahan likhi jayegi</p></div>'}`;
     if(!modal.classList.contains('open'))openModal('hkActivityModal');
+  };
+
+  // Owner can remove one line or clear the whole list (or one user's lines).
+  window.deleteActivityEntry=function(id){
+    customConfirm('Yeh line Activity se mita dein?',()=>{
+      activityLog=activityLog.filter(a=>a.id!==id);
+      saveAll();openActivityLog();
+    },{okText:'Mitayein',title:'🗑 Activity'});
+  };
+  window.clearActivityLog=function(){
+    let who=filterUser;
+    customConfirm(who?`${who} ki sab Activity lines mita dein?`:'Activity ki sab lines mita dein? (Orders, khata waghera par koi asar nahi)',()=>{
+      activityLog=who?activityLog.filter(a=>a.user!==who):[];
+      filterUser='';saveAll();openActivityLog();
+      showToast('🗑 Activity saaf ho gayi');
+    },{okText:'Sab Mitayein',title:'🗑 Activity'});
   };
 
   function addMenuEntry(){
