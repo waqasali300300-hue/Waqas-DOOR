@@ -223,3 +223,9 @@
     setTimeout(maybeMorning,2000);
   });
 })();
+
+// Warn early if the cloud copy is getting close to Firestore's 1MB limit.
+(window.hkAttentionSources=window.hkAttentionSources||[]).push(()=>{
+  let z=window._hkCloudSize||0;
+  return z>800000?[{icon:'☁️',tone:'warn',text:`Cloud ki jagah ${Math.round(z/10485.76)}% bhar gayi — purana data archive karne ke liye rabta karein`,go:'openSettingsModal()'}]:[];
+});

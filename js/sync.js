@@ -77,7 +77,38 @@
     return out;
   }
 
-  let api={merge,stable,same};
+  // ── Packing the cloud copy ──
+  // Firestore allows 1MB per document. Plain JSON of a busy shop passes that after
+  // a few hundred orders, so the data is stored gzip-compressed (about 10× smaller)
+  // as one text field. Documents written by older app versions (plain fields)
+  // are still read.
+  const PLAIN_KEYS=['parties','orders','labours','expenses','businessProfile'];
+  function toB64(bytes){
+    let s='',CH=0x8000;
+    for(let i=0;i<bytes.length;i+=CH)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
+    return btoa(s);
+  }
+  function fromB64(str){let bin=atob(str),out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out;}
+  async function pack(obj){
+    let json=JSON.stringify(obj);
+    if(typeof CompressionStream!=='undefined'){
+      let stream=new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+      let buf=new Uint8Array(await new Response(stream).arrayBuffer());
+      return {fmt:2,enc:'gzip',z:toB64(buf)};
+    }
+    return {fmt:2,enc:'json',z:json};
+  }
+  async function unpack(doc){
+    if(!doc)return null;
+    let d=Object.assign({},doc);delete d.savedAt;
+    // Plain fields present → written by an older app version; use them.
+    if(!d.z||PLAIN_KEYS.some(k=>k in d)){delete d.z;delete d.fmt;delete d.enc;return d;}
+    if(d.enc==='json')return JSON.parse(d.z);
+    let stream=new Blob([fromB64(d.z)]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return JSON.parse(await new Response(stream).text());
+  }
+
+  let api={merge,stable,same,pack,unpack};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else root.HKSync=api;
 })(typeof window!=='undefined'?window:this);
