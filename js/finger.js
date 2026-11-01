@@ -3,12 +3,27 @@
 // through the browser's WebAuthn API. Nothing about the finger leaves the device;
 // the browser only answers "the owner unlocked". Set up per device, in
 // Settings → Security, after an Owner PIN exists. The PIN always still works.
+// Inside the Android app (APK) the phone's own fingerprint prompt is used instead,
+// because the app's WebView has no WebAuthn.
 (function(){
   const KEY='hk_finger_cred';   // per device, never synced
 
-  function supported(){return !window.hkNative&&!!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);}
+  function nativeBio(){return window.hkNative&&window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.NativeBiometric;}
+  function supported(){
+    if(window.hkNative)return !!nativeBio();
+    return !!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);
+  }
   async function platformReady(){
-    try{return supported()&&await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();}catch(e){return false;}
+    try{
+      if(window.hkNative)return !!nativeBio()&&!!(await nativeBio().isAvailable({useFallback:false})).isAvailable;
+      return supported()&&await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    }catch(e){return false;}
+  }
+  async function nativeCheck(){
+    try{
+      await nativeBio().verifyIdentity({title:businessProfile.name||'HK Doors',subtitle:'Finger se app kholein',reason:'App kholein',negativeButtonText:'PIN se kholein',maxAttempts:5});
+      return true;
+    }catch(e){return false;}
   }
   function enrolledId(){try{return localStorage.getItem(KEY)||'';}catch(e){return '';}}
   function rnd(n){let a=new Uint8Array(n);crypto.getRandomValues(a);return a;}
@@ -21,6 +36,13 @@
     if(window.hkIsStaff&&hkIsStaff()){showToast('🔒 Sirf Owner');return;}
     if(!businessProfile.ownerPin){showToast('⚠️ Pehle Owner PIN lagayein');return;}
     if(!await platformReady()){showToast('⚠️ Is device par fingerprint/face lock nahi mila (phone ki settings mein screen lock lagayein)');return;}
+    if(window.hkNative){
+      if(!await nativeCheck()){showToast('Fingerprint cancel ho gaya');return;}
+      localStorage.setItem(KEY,'native');
+      showToast('✅ Fingerprint lag gaya — ab finger se app khulegi');
+      if(document.getElementById('settingsModal')?.classList.contains('open'))openSettingsModal();
+      return;
+    }
     try{
       let cred=await navigator.credentials.create({publicKey:{
         challenge:rnd(32),
@@ -46,6 +68,8 @@
   // Ask the device to check the finger; true when the owner is confirmed.
   async function verify(){
     let id=enrolledId();if(!id)return false;
+    if(window.hkNative)return id==='native'&&!!nativeBio()&&nativeCheck();
+    if(id==='native')return false;
     try{
       let r=await navigator.credentials.get({publicKey:{
         challenge:rnd(32),
