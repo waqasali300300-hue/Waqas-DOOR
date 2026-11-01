@@ -321,10 +321,12 @@ async function syncNow(){
     await db.runTransaction(async tx=>{
       let snap=await tx.get(cloudDocRef());
       let remote=null;
-      if(snap.exists){remote=snap.data();delete remote.savedAt;remoteFound=true;}
+      if(snap.exists){remote=await HKSync.unpack(snap.data());remoteFound=true;}
       merged=HKSync.merge(_syncBase,local,remote);
-      if(!remote||!HKSync.same(merged,remote)){
-        tx.set(cloudDocRef(),{...merged,savedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      if(!remote||!HKSync.same(merged,remote)||!snap.data().z){
+        let packed=await HKSync.pack(merged);
+        window._hkCloudSize=packed.z.length;
+        tx.set(cloudDocRef(),{...packed,savedAt:firebase.firestore.FieldValue.serverTimestamp()});
       }
     });
     saveSyncBase(merged);
@@ -356,9 +358,9 @@ async function syncNow(){
 function listenForCloudChanges(){
   if(_cloudUnsub||!db)return;
   try{
-    _cloudUnsub=cloudDocRef().onSnapshot(snap=>{
+    _cloudUnsub=cloudDocRef().onSnapshot(async snap=>{
       if(snap.metadata.hasPendingWrites||!snap.exists)return;
-      let remote=snap.data();delete remote.savedAt;
+      let remote=null;try{remote=await HKSync.unpack(snap.data());}catch(e){return;}
       if(_syncBase&&HKSync.same(remote,_syncBase))return; // nothing new
       clearTimeout(window._cloudPullTimer);
       window._cloudPullTimer=setTimeout(syncNow,800);

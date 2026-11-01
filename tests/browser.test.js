@@ -27,6 +27,7 @@ function serve(){
 const MOCK_DB=`
   try{localStorage.setItem('hk_morning_off','1');}catch(e){}  // morning summary pops up on its own; tests open it themselves
   window.__cloud={erp:{},erp_photos:{}};
+  window.__cloudData=()=>HKSync.unpack(__cloud.erp.hk_main_user);   // the cloud copy is stored compressed
   window.__mockDb=function(){
     const clone=x=>JSON.parse(JSON.stringify(x));
     const ref=(c,id)=>({_c:c,_id:id,
@@ -72,11 +73,11 @@ test('two phones syncing keep each other\'s entries, edits and deletes',async pa
     __cloud.erp.hk_main_user={parties:[{id:1,name:'Ali'},{id:2,name:'FromB'}],nextId:500};
     await syncNow();
     parties.push({id:newId(),name:'NewA'});saveAll();
-    let c=__cloud.erp.hk_main_user;
+    let c=await __cloudData();__cloud.erp.hk_main_user=c;
     c.parties=c.parties.map(p=>p.id===2?{...p,name:'FromB-edited'}:p);c.parties.push({id:3,name:'NewB'});
     await syncNow();
     let afterAdd=parties.map(p=>p.name);
-    __cloud.erp.hk_main_user.parties=__cloud.erp.hk_main_user.parties.filter(p=>p.id!==1);
+    {let c2=await __cloudData();c2.parties=c2.parties.filter(p=>p.id!==1);__cloud.erp.hk_main_user=c2;}
     await syncNow();
     return {afterAdd,afterDelete:parties.map(p=>p.name)};
   });
@@ -323,7 +324,7 @@ test('laptop and phone with different parties both end up with all parties',asyn
     // Laptop: has its own party, joins the cloud first
     _syncBaseLoaded=true;_syncBase=null;parties=[{id:101,name:'Laptop Party'}];orders=[];
     await syncNow();
-    let laptopCloud=JSON.parse(JSON.stringify(__cloud.erp.hk_main_user));
+    let laptopCloud=await __cloudData();
     // Phone: different local party, joins the same cloud
     _syncBase=null;parties=[{id:202,name:'Mobile Party'}];
     await syncNow();
@@ -385,10 +386,10 @@ test('Reset All Data empties every joined device and keeps them connected',async
     parties=[{id:1,name:'Ali'},{id:2,name:'Bilal'}];orders=[{id:9,orderNo:'ORD-1',partyId:1,date:'2026-10-01',orderTotal:5,payments:[]}];
     businessProfile.name='HK TEST';
     await syncNow();
-    let phoneBase=JSON.parse(JSON.stringify(__cloud.erp.hk_main_user));
+    let phoneBase=await __cloudData();
     // Laptop resets
     resetAllData();await wait(50);customConfirmOk();await wait(300);await syncNow();
-    let cloudAfter={parties:__cloud.erp.hk_main_user.parties.length,orders:__cloud.erp.hk_main_user.orders.length};
+    let cd=await __cloudData();let cloudAfter={parties:cd.parties.length,orders:cd.orders.length};
     let keptCfg=!!localStorage.getItem('ww_fb_cfg'),keptName=businessProfile.name;
     // Phone (same data as before) syncs and gets emptied too
     _syncBase=phoneBase;parties=JSON.parse(JSON.stringify(phoneBase.parties));orders=JSON.parse(JSON.stringify(phoneBase.orders));

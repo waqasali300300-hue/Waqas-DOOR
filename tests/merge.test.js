@@ -21,3 +21,15 @@ assert.deepEqual(merge(base,A,null),A);
 // arrays without ids -> whole value
 m=merge({x:[1,2]},{x:[1,2,3]},{x:[1,2]});assert.deepEqual(m.x,[1,2,3]);
 console.log('merge tests passed');
+
+// Packing: compressed round trip, old plain documents still readable, much smaller
+(async()=>{
+  const {pack,unpack}=require('../js/sync.js');
+  let big={orders:Array.from({length:300},(_,i)=>({id:i,orderNo:'ORD-'+i,doors:[{size:'45x80 Mughleazam',qty:2,rate:500}],orderTotal:75000})),parties:[{id:1,name:'Ali'}]};
+  let packed=await pack(big);
+  assert.deepStrictEqual(await unpack({...packed,savedAt:1}),big);
+  assert.ok(packed.z.length<JSON.stringify(big).length/5,'compressed size '+packed.z.length);
+  assert.deepStrictEqual(await unpack({parties:[{id:1}],savedAt:1,z:'stale',fmt:2}),{parties:[{id:1}]});
+  assert.strictEqual(await unpack(null),null);
+  console.log('pack tests passed');
+})().catch(e=>{console.error(e);process.exit(1);});
