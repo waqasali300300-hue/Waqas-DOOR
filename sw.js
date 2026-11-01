@@ -4,7 +4,7 @@
 // away; libraries and icons come from the saved copy.
 // Change CACHE_VERSION whenever files are added to APP_SHELL.
 
-const CACHE_VERSION = 'v21';
+const CACHE_VERSION = 'v22';
 const CACHE_NAME = 'hk-wood-doors-' + CACHE_VERSION;
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = [
@@ -38,6 +38,15 @@ const APP_SHELL = [
   './vendor/html2canvas.min.js',
   './vendor/jspdf.umd.min.js',
   './vendor/qrcode.min.js',
+  './vendor/fonts/IBMPlexMono-54e437.woff2',
+  './vendor/fonts/IBMPlexMono-9b8270.woff2',
+  './vendor/fonts/IBMPlexMono-a7544c.woff2',
+  './vendor/fonts/Inter-567244.woff2',
+  './vendor/fonts/Poppins-06d94d.woff2',
+  './vendor/fonts/Poppins-b542d4.woff2',
+  './vendor/fonts/Poppins-ddd022.woff2',
+  './vendor/fonts/Poppins-fd1924.woff2',
+  './vendor/fonts/fonts.css',
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-192.png',

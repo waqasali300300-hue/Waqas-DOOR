@@ -450,3 +450,8 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
 
 /* Android app (APK): "new version" note */
 .hk-apk-update{position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:900;border:none;border-radius:24px;padding:10px 18px;background:var(--gold);color:#1a1a1a;font-weight:700;font-size:12px;font-family:inherit;box-shadow:0 4px 18px rgba(0,0,0,.25);}
+.hk-src-sheet{position:fixed;inset:0;z-index:20000;background:rgba(10,20,40,.5);display:flex;align-items:flex-end;justify-content:center;}
+.hk-src-box{background:var(--card,#fff);color:var(--text);width:100%;max-width:480px;border-radius:18px 18px 0 0;padding:14px 16px 22px;display:flex;flex-direction:column;gap:8px;}
+.hk-src-title{font-weight:700;font-size:13px;text-align:center;margin-bottom:4px;}
+.hk-src-box button{border:1px solid var(--border);background:var(--gray-50);color:var(--text);border-radius:12px;padding:12px;font-size:13px;font-weight:600;font-family:inherit;}
+.hk-src-box .hk-src-cancel{background:none;color:var(--gray-500);}
