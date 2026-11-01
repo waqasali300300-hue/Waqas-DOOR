@@ -17,7 +17,9 @@
     bankTransactions:{icon:'🏦',name:'Bank',label:t=>`${t.description||t.note||t.type||''} ${fmtRs(t.amount)}`},
     karigars:{icon:'👷',name:'Karigar',label:k=>k.name},
     quotations:{icon:'📝',name:'Estimate',label:q=>`${q.quoteNo||''} ${getPartyName(q.partyId)}`},
-    cheques:{icon:'🧾',name:'Cheque',label:c=>`${c.chequeNo||''} ${fmtRs(c.amount)} ${c.status||''}`}
+    cheques:{icon:'🧾',name:'Cheque',label:c=>`${c.chequeNo||''} ${fmtRs(c.amount)} ${c.status||''}`},
+    monthlyBills:{icon:'🧾',name:'Mahana Bill',label:b=>`${b.name||''} ${fmtRs(b.amount)}`},
+    shopTools:{icon:'🛠️',name:'Auzaar',label:t=>t.name||''}
   };
 
   let last=null; // collection -> Map(id -> {text, rec})

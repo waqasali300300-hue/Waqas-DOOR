@@ -434,3 +434,16 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
 .dark-mode .hm-cloud.warn{background:#3a2e0e;color:#fde68a;}
 .dark-mode .hm-cloud.bad{background:#3a1414;color:#fecaca;}
 @media (min-width:1024px){#tabHome>#hmCloud{grid-column:1/-1;}}
+
+/* Monthly sales target on Home */
+.hm-target:empty{display:none;}
+.hm-target{margin-bottom:12px;}
+.hm-target-set{width:100%;background:none;border:1px dashed var(--border);border-radius:12px;padding:9px;font-family:inherit;font-size:11px;color:var(--gray-500);cursor:pointer;}
+.hm-target-card{width:100%;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:11px 13px;text-align:left;font-family:inherit;color:var(--text);cursor:pointer;}
+.hm-target-top{display:flex;justify-content:space-between;font-size:12px;font-weight:600;}
+.hm-target-bar{height:8px;background:var(--gray-100);border-radius:6px;overflow:hidden;margin:7px 0 5px;}
+.hm-target-fill{height:100%;border-radius:6px;background:var(--primary);transition:width .4s;}
+.hm-target-fill.good{background:var(--green-600);}
+.hm-target-fill.warn{background:var(--gold);}
+.hm-target-fill.bad{background:var(--red);}
+.hm-target-msg{font-size:10.5px;color:var(--gray-500);}

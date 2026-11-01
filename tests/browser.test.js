@@ -540,6 +540,73 @@ test('activity: one line per action, owner can delete a line or clear all; labou
   assert.strictEqual(r.afterAll,0);
 });
 
+test('monthly bills, rate list PDF, tools and machines, sales target',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    const day=new Date().toISOString().slice(8,10);
+    // 21. Bill due today → reminder on Home; paying writes a Kharcha entry once.
+    openBills();editBill();
+    document.getElementById('hkBillName').value='Dukaan ka kiraya';
+    document.getElementById('hkBillAmt').value='25000';
+    document.getElementById('hkBillDay').value=String(parseInt(day));
+    saveBill(null);await wait(50);
+    renderDashboard();
+    let billAttention=document.getElementById('hmAttention').innerText;
+    let bill=monthlyBills[0];
+    payBill(bill.id);document.getElementById('hkBillPayAmt').value='26000';confirmBillPay(bill.id);
+    payBill(bill.id);
+    let billExp=expenses.filter(e=>e.billId===bill.id);
+    renderDashboard();
+    let afterPay=document.getElementById('hmAttention').innerText;
+    // 22. Rate list PDF content and shortcut.
+    priceList=[{id:1,size:'Mughleazam',rate:950},{id:2,size:'Rose Design',rate:800}];
+    let html=hkRateListHTML('x');
+    openPriceListModal();let plBtn=!!document.getElementById('hkRatePdfBtn');closeModal('priceListModal');
+    let opened='';window.open=u=>{opened=u;};sendRateListWA();
+    // 23. Tools: give to karigar, repair with cost → Kharcha, service reminder.
+    karigars=[{id:7,name:'Akram'}];
+    openTools();editTool();
+    document.getElementById('hkToolName').value='Randa machine';
+    document.getElementById('hkToolKind').value='machine';
+    document.getElementById('hkToolLast').value='2020-01-01';
+    document.getElementById('hkToolEvery').value='90';
+    saveTool(null);
+    let tool=shopTools[0];
+    giveTool(tool.id);document.getElementById('hkToolGive').value='7';confirmGiveTool(tool.id);
+    let toolsText=document.getElementById('hkToolsModalB').innerText;
+    renderDashboard();
+    let svcAttention=document.getElementById('hmAttention').innerText;
+    repairTool(tool.id);document.getElementById('hkRepText').value='Belt badli';document.getElementById('hkRepCost').value='1500';saveRepair(tool.id);
+    let repairExp=expenses.find(e=>e.toolId===tool.id);
+    // 24. Target card on Home.
+    orders=[{id:50,orderNo:'O-1',date:new Date().toISOString().slice(0,10),orderTotal:250000,payments:[]}];
+    setSalesTarget();document.getElementById('hkTargetAmt').value='1000000';saveSalesTarget();
+    renderDashboard();
+    let target=document.getElementById('hmTarget').innerText;
+    // Staff can't delete bills/tools.
+    staffUsers=[{id:99,name:'Bilal',pin:'1111'}];activeUserId=99;
+    deleteShopTool(tool.id);await wait(50);
+    let staffDelete=!!document.getElementById('confirmModalOkBtn')?.closest('.modal.open');
+    activeUserId=null;
+    return {billAttention,billExp:billExp.map(e=>e.amount),afterPay,html,plBtn,opened,toolsText,svcAttention,
+      repair:repairExp&&[repairExp.amount,repairExp.category],lastService:shopTools[0].lastService,
+      target,tools:shopTools.length,staffDelete:!!staffDelete};
+  });
+  assert.ok(r.billAttention.includes('Dukaan ka kiraya'),r.billAttention);
+  assert.deepStrictEqual(r.billExp,[26000]);
+  assert.ok(!r.afterPay.includes('Dukaan ka kiraya'),r.afterPay);
+  assert.ok(r.html.includes('Mughleazam')&&r.html.includes('RATE LIST'));
+  assert.ok(r.plBtn);
+  assert.ok(decodeURIComponent(r.opened).includes('Rose Design'),r.opened);
+  assert.ok(r.toolsText.includes('Akram'),r.toolsText);
+  assert.ok(r.svcAttention.includes('Randa machine'),r.svcAttention);
+  assert.deepStrictEqual(r.repair,[1500,'Marammat']);
+  assert.strictEqual(r.lastService,new Date().toISOString().slice(0,10));
+  assert.ok(r.target.includes('25%'),r.target);
+  assert.strictEqual(r.tools,1);
+  assert.strictEqual(r.staffDelete,false);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
