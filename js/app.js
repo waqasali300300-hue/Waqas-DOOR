@@ -5324,7 +5324,7 @@ async function init(){
 document.addEventListener('DOMContentLoaded',init);
 
 // ─── SERVICE WORKER (offline support + PWA installability) ───
-if('serviceWorker' in navigator){
+if('serviceWorker' in navigator&&!window.hkNative){
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('./sw.js').catch(()=>{/* ignore if not served over http(s) */});
   });

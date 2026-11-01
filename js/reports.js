@@ -217,7 +217,7 @@
   };
 
   // ── QR labels that open the order ──
-  function orderUrl(o){return location.origin+location.pathname+'#order='+o.id;}
+  function orderUrl(o){return hkPublicBase()+'#order='+o.id;}
   // Labels used to carry plain text; now the QR opens the order on any phone with the app.
   let origQR=window.QRCode;
   if(origQR){

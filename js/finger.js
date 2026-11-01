@@ -6,7 +6,7 @@
 (function(){
   const KEY='hk_finger_cred';   // per device, never synced
 
-  function supported(){return !!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);}
+  function supported(){return !window.hkNative&&!!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);}
   async function platformReady(){
     try{return supported()&&await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();}catch(e){return false;}
   }
