@@ -117,6 +117,38 @@
     document.body.appendChild(ov);
   }
 
+  // Photo fields: the APK's file picker only shows the gallery, so ask
+  // "Camera or Gallery?" first (in Chrome the phone asked this itself).
+  function photoSource(done){
+    let ov=document.createElement('div');
+    ov.className='hk-src-sheet';
+    ov.innerHTML=`<div class="hk-src-box"><div class="hk-src-title">📷 Tasveer kahan se?</div>
+      <button data-s="camera">📷 Camera se kheenchein</button>
+      <button data-s="gallery">🖼️ Gallery se chunein</button>
+      <button data-s="" class="hk-src-cancel">Cancel</button></div>`;
+    ov.addEventListener('click',e=>{
+      let b=e.target.closest('button');
+      if(!b&&e.target!==ov)return;
+      ov.remove();
+      if(b&&b.dataset.s)done(b.dataset.s);
+    });
+    document.body.appendChild(ov);
+  }
+  document.addEventListener('click',e=>{
+    let inp=e.target;
+    if(!(inp instanceof HTMLInputElement)||inp.type!=='file')return;
+    if(inp._hkPicked){inp._hkPicked=false;return;}
+    if(inp._hkCap){inp.removeAttribute('capture');inp._hkCap=false;}
+    // Fields that always use the camera (bill photo) keep their own setting.
+    if(!/image/.test(inp.accept||'')||inp.hasAttribute('capture'))return;
+    e.preventDefault();
+    photoSource(src=>{
+      if(src==='camera'){inp.setAttribute('capture','environment');inp._hkCap=true;}
+      inp._hkPicked=true;
+      inp.click();
+    });
+  },true);
+
   // ── Daily backup file ──
   const BK_DIR='HK Doors/Backup',BK_KEEP=15,BK_SEEN='hk_file_backup_day';
   function day(){return new Date().toISOString().slice(0,10);}

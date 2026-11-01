@@ -658,9 +658,17 @@ test('APK: files are saved and shared, outside links open in their app; web show
     let unlocked=await hkFingerVerify();
     startVoice();await wait(200);
     let expDesc=document.getElementById('expDesc')?.value,expAmt=document.getElementById('expAmount')?.value;
+    // Photo field: asks camera or gallery, then opens the picker with the right setting.
+    let inp=document.createElement('input');inp.type='file';inp.accept='image/*';document.body.appendChild(inp);
+    let opened=[];inp.addEventListener('click',e=>{if(!e.defaultPrevented){opened.push(inp.getAttribute('capture'));e.preventDefault();}});
+    inp.click();
+    let sheet=!!document.querySelector('.hk-src-sheet');
+    document.querySelector('.hk-src-sheet button[data-s="camera"]').click();
+    inp.click();document.querySelector('.hk-src-sheet button[data-s="gallery"]').click();
+    let photo={sheet,opened,left:!!document.querySelector('.hk-src-sheet')};
     return {nat:__nat,native:hkNative,apkMenu:!!document.getElementById('hkApkBtn'),
       base:hkPublicBase(),sw:document.documentElement.classList.contains('hk-native'),
-      backup,deleted:__nat.deleted,fingerOn,unlocked,bio:__nat.bio,lang:__nat.lang,expDesc,expAmt};
+      backup,deleted:__nat.deleted,photo,fingerOn,unlocked,bio:__nat.bio,lang:__nat.lang,expDesc,expAmt};
   });
   assert.strictEqual(r.native,true);
   assert.deepStrictEqual(r.nat.writes.slice(0,2).map(w=>w[0]),['DOCUMENTS','CACHE']);
@@ -677,7 +685,19 @@ test('APK: files are saved and shared, outside links open in their app; web show
   assert.strictEqual(r.unlocked,true);
   assert.strictEqual(r.bio,2);
   assert.strictEqual(r.lang,'ur-PK');
+  assert.deepStrictEqual(r.photo,{sheet:true,opened:['environment',null],left:false});
   assert.ok(r.expAmt==='5000',JSON.stringify([r.expDesc,r.expAmt]));
+});
+
+test('fonts are bundled with the app (work offline)',async page=>{
+  const r=await page.evaluate(async()=>{
+    await document.fonts.ready;
+    let links=[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>l.getAttribute('href'));
+    await Promise.all(['600 12px Poppins','400 12px Inter','600 12px "IBM Plex Mono"'].map(f=>document.fonts.load(f)));
+    return {links,ok:['600 12px Poppins','400 12px Inter','600 12px "IBM Plex Mono"'].map(f=>document.fonts.check(f))};
+  });
+  assert.ok(!r.links.some(h=>/googleapis/.test(h)),JSON.stringify(r.links));
+  assert.deepStrictEqual(r.ok,[true,true,true]);
 });
 
 (async()=>{
