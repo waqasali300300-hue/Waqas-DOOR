@@ -283,7 +283,22 @@
     showToast('🎤 Samajh nahi aaya: "'+text+'" — kahein: "kharcha bijli 5000" ya "payment Ali 20000"');
     return v;
   };
+  // Inside the Android app (APK) the phone's own speech service is used.
+  async function nativeVoice(sr){
+    try{
+      let ok=(await sr.available()).available;
+      if(!ok){showToast('⚠️ Is phone par awaaz se likhna nahi mila');return;}
+      let p=await sr.requestPermissions();
+      if(p&&p.speechRecognition&&p.speechRecognition!=='granted'){showToast('⚠️ Mic ki ijazat dein (phone settings → Apps → HK Doors)');return;}
+      showToast('🎤 Boliye… maslan "kharcha bijli 5000"');
+      let r=await sr.start({language:'ur-PK',maxResults:1,prompt:'Boliye… maslan "kharcha bijli 5000"',partialResults:false,popup:true});
+      let text=r&&r.matches&&r.matches[0];
+      if(text)applyVoiceText(text);else showToast('⚠️ Awaaz nahi suni — dobara koshish karein');
+    }catch(e){showToast('⚠️ Awaaz nahi suni — dobara koshish karein');}
+  }
   window.startVoice=function(){
+    let nsr=window.hkNative&&window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.SpeechRecognition;
+    if(nsr){nativeVoice(nsr);return;}
     let SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){showToast('⚠️ Is browser mein awaaz se likhna nahi chalta — Google Chrome istemal karein');return;}
     let r=new SR();r.lang='ur-PK';r.interimResults=false;r.maxAlternatives=1;

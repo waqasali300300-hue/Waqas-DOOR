@@ -634,7 +634,11 @@ test('APK: files are saved and shared, outside links open in their app; web show
   await page.addInitScript(()=>{
     window.__nat={writes:[],shares:[],opened:[]};
     window.Capacitor={isNativePlatform:()=>true,Plugins:{
-      Filesystem:{writeFile:async o=>{__nat.writes.push([o.directory,o.path,o.data.length]);return {uri:'file:///cache/'+o.path};}},
+      Filesystem:{writeFile:async o=>{__nat.writes.push([o.directory,o.path,o.data.length]);return {uri:'file:///cache/'+o.path};},
+        readdir:async()=>({files:Array.from({length:17},(_,i)=>({name:`HK_Doors_Backup_2026-10-${String(i+1).padStart(2,'0')}.json`}))}),
+        deleteFile:async o=>{(__nat.deleted=__nat.deleted||[]).push(o.path);}},
+      NativeBiometric:{isAvailable:async()=>({isAvailable:true}),verifyIdentity:async()=>{__nat.bio=(__nat.bio||0)+1;}},
+      SpeechRecognition:{available:async()=>({available:true}),requestPermissions:async()=>({speechRecognition:'granted'}),start:async o=>{__nat.lang=o.language;return {matches:['kharcha bijli 5000']};}},
       Share:{share:async o=>{__nat.shares.push(o.files[0]);}},
       AppLauncher:{openUrl:async o=>{__nat.opened.push(o.url);}}}};
   });
@@ -645,17 +649,35 @@ test('APK: files are saved and shared, outside links open in their app; web show
     let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['hello'],{type:'application/pdf'}));a.download='Test.pdf';a.click();
     await wait(300);
     window.open('https://wa.me/923001234567?text=hi','_blank');
+    let writesBefore=__nat.writes.length;
+    await hkFileBackupNow();
+    let backup=__nat.writes.slice(writesBefore).map(w=>w[1]);
+    businessProfile.ownerPin='1234';
+    await enrolFinger();
+    let fingerOn=localStorage.getItem('hk_finger_cred');
+    let unlocked=await hkFingerVerify();
+    startVoice();await wait(200);
+    let expDesc=document.getElementById('expDesc')?.value,expAmt=document.getElementById('expAmount')?.value;
     return {nat:__nat,native:hkNative,apkMenu:!!document.getElementById('hkApkBtn'),
-      base:hkPublicBase(),sw:document.documentElement.classList.contains('hk-native')};
+      base:hkPublicBase(),sw:document.documentElement.classList.contains('hk-native'),
+      backup,deleted:__nat.deleted,fingerOn,unlocked,bio:__nat.bio,lang:__nat.lang,expDesc,expAmt};
   });
   assert.strictEqual(r.native,true);
-  assert.deepStrictEqual(r.nat.writes.map(w=>w[0]),['DOCUMENTS','CACHE']);
+  assert.deepStrictEqual(r.nat.writes.slice(0,2).map(w=>w[0]),['DOCUMENTS','CACHE']);
   assert.ok(r.nat.writes[0][1].endsWith('Test.pdf'));
   assert.deepStrictEqual(r.nat.shares,['file:///cache/Test.pdf']);
   assert.deepStrictEqual(r.nat.opened,['https://wa.me/923001234567?text=hi']);
   assert.strictEqual(r.apkMenu,false);
   assert.strictEqual(r.base,'https://waqasali300300-hue.github.io/Waqas-DOOR/');
   assert.ok(r.sw);
+  assert.strictEqual(r.backup.length,1);
+  assert.ok(/^HK Doors\/Backup\/HK_Doors_Backup_\d{4}-\d{2}-\d{2}\.json$/.test(r.backup[0]),r.backup[0]);
+  assert.deepStrictEqual(r.deleted,['HK Doors/Backup/HK_Doors_Backup_2026-10-01.json','HK Doors/Backup/HK_Doors_Backup_2026-10-02.json']);
+  assert.strictEqual(r.fingerOn,'native');
+  assert.strictEqual(r.unlocked,true);
+  assert.strictEqual(r.bio,2);
+  assert.strictEqual(r.lang,'ur-PK');
+  assert.ok(r.expAmt==='5000',JSON.stringify([r.expDesc,r.expAmt]));
 });
 
 (async()=>{

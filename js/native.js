@@ -4,6 +4,8 @@
 //   • PDF / Excel / backup files: saved to the phone and the share sheet opens
 //   • WhatsApp, phone and other links: open in their own app
 //   • Links sent to customers point to the online copy, not to the phone
+//   • A daily backup file in Documents/HK Doors/Backup (kept 15 days), so the data
+//     is safe on the phone even without internet or if the app is removed
 //   • A note when a newer APK is available
 // In a normal browser this file only adds the "Android App (APK)" menu item.
 (function(){
@@ -115,6 +117,47 @@
     document.body.appendChild(ov);
   }
 
+  // ── Daily backup file ──
+  const BK_DIR='HK Doors/Backup',BK_KEEP=15,BK_SEEN='hk_file_backup_day';
+  function day(){return new Date().toISOString().slice(0,10);}
+  async function fileBackup(force){
+    let fs=P().Filesystem;if(!fs||typeof getDataSnapshot!=='function')return false;
+    let d=day();
+    try{if(!force&&localStorage.getItem(BK_SEEN)===d)return false;}catch(e){}
+    try{
+      let json=JSON.stringify({savedAt:new Date().toISOString(),app:'HK Doors',data:getDataSnapshot()});
+      await fs.writeFile({path:`${BK_DIR}/HK_Doors_Backup_${d}.json`,data:json,directory:'DOCUMENTS',encoding:'utf8',recursive:true});
+      try{localStorage.setItem(BK_SEEN,d);localStorage.setItem('hk_file_backup_at',new Date().toISOString());}catch(e){}
+      // Keep the latest BK_KEEP days only.
+      try{
+        let files=((await fs.readdir({path:BK_DIR,directory:'DOCUMENTS'})).files||[]).map(f=>typeof f==='string'?f:f.name)
+          .filter(n=>/^HK_Doors_Backup_\d{4}-\d{2}-\d{2}\.json$/.test(n)).sort();
+        for(const n of files.slice(0,Math.max(0,files.length-BK_KEEP)))await fs.deleteFile({path:`${BK_DIR}/${n}`,directory:'DOCUMENTS'}).catch(()=>{});
+      }catch(e){}
+      return true;
+    }catch(e){console.warn('File backup:',e);return false;}
+  }
+  window.hkFileBackupNow=async function(){
+    showToast(await fileBackup(true)?'✅ Backup file ban gayi: Documents → HK Doors → Backup':'⚠️ Backup file nahi bani');
+    if(document.getElementById('settingsModal')?.classList.contains('open'))openSettingsModal();
+  };
+  function addBackupInfo(){
+    let orig=window.openSettingsModal;if(!orig||orig._hkFile)return;
+    let wrapped=function(){
+      let r=orig.apply(this,arguments);
+      let info=document.getElementById('hkStorageInfo');
+      if(info&&!document.getElementById('hkFileBackupRow')){
+        let at='';try{at=localStorage.getItem('hk_file_backup_at')||'';}catch(e){}
+        info.insertAdjacentHTML('afterend',`<div id="hkFileBackupRow" style="margin-top:8px;font-size:9px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <span>📁 Roz ki backup file: Documents → HK Doors → Backup${at?` (aakhri: ${esc(new Date(at).toLocaleString('en-PK'))})`:''}</span>
+          <button class="btn btn-outline btn-xs" onclick="hkFileBackupNow()">Abhi backup</button></div>`);
+      }
+      return r;
+    };
+    wrapped._hkFile=true;
+    window.openSettingsModal=wrapped;
+  }
+
   // Tell the owner when a newer APK is out.
   async function checkUpdate(){
     let mine=Number(window.HK_APK_BUILD)||0;if(!mine)return;
@@ -134,6 +177,8 @@
 
   document.addEventListener('hk:ready',()=>{
     window.viewOrderPhotoFull=photoViewer;
+    addBackupInfo();
     setTimeout(checkUpdate,4000);
+    setTimeout(()=>fileBackup(false),6000);
   });
 })();
