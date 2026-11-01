@@ -37,7 +37,7 @@
         <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;" onclick="closeModal('hkLinkModal');openFbSetup()">🔥 Cloud Setup kholein</button>`;
     }else{
       // A link that opens the app on the other device with Cloud Setup already filled in.
-      let url=location.origin+location.pathname+'#join='+encodeURIComponent(code);
+      let url=hkPublicBase()+'#join='+encodeURIComponent(code);
       window._hkLinkCode=url;
       window._hkLinkMsg=`HK Doors app ko is device par jorne ke liye yeh link kholein, phir sirf password likh kar Connect dabayein:\n${url}`;
       body.innerHTML=`<ol style="font-size:12px;line-height:1.7;padding-left:18px;margin-bottom:10px;">

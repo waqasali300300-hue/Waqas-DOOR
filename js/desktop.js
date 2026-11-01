@@ -32,6 +32,7 @@
 (function(){
   let deferred=null;
   function installed(){
+    if(window.hkNative)return true;
     return window.matchMedia&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: window-controls-overlay)').matches)||navigator.standalone===true;
   }
   function browserName(){

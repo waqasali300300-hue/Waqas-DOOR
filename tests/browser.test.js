@@ -629,6 +629,35 @@ test('confirm box opened from another window shows on top and deletes (Activity,
   assert.strictEqual(await page.evaluate(()=>monthlyBills.length),0);
 });
 
+test('APK: files are saved and shared, outside links open in their app; web shows APK menu',async page=>{
+  assert.ok(await page.evaluate(()=>!!document.getElementById('hkApkBtn')&&!hkNative),'APK menu in browser');
+  await page.addInitScript(()=>{
+    window.__nat={writes:[],shares:[],opened:[]};
+    window.Capacitor={isNativePlatform:()=>true,Plugins:{
+      Filesystem:{writeFile:async o=>{__nat.writes.push([o.directory,o.path,o.data.length]);return {uri:'file:///cache/'+o.path};}},
+      Share:{share:async o=>{__nat.shares.push(o.files[0]);}},
+      AppLauncher:{openUrl:async o=>{__nat.opened.push(o.url);}}}};
+  });
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('statsArea')?.innerHTML);
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['hello'],{type:'application/pdf'}));a.download='Test.pdf';a.click();
+    await wait(300);
+    window.open('https://wa.me/923001234567?text=hi','_blank');
+    return {nat:__nat,native:hkNative,apkMenu:!!document.getElementById('hkApkBtn'),
+      base:hkPublicBase(),sw:document.documentElement.classList.contains('hk-native')};
+  });
+  assert.strictEqual(r.native,true);
+  assert.deepStrictEqual(r.nat.writes.map(w=>w[0]),['DOCUMENTS','CACHE']);
+  assert.ok(r.nat.writes[0][1].endsWith('Test.pdf'));
+  assert.deepStrictEqual(r.nat.shares,['file:///cache/Test.pdf']);
+  assert.deepStrictEqual(r.nat.opened,['https://wa.me/923001234567?text=hi']);
+  assert.strictEqual(r.apkMenu,false);
+  assert.strictEqual(r.base,'https://waqasali300300-hue.github.io/Waqas-DOOR/');
+  assert.ok(r.sw);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;

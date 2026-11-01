@@ -157,7 +157,7 @@
   }
   function catalogLink(){
     let c=getFirebaseCfg();if(!c)return '';
-    return location.origin+location.pathname.replace(/[^/]*$/,'')+'catalog.html#p='+encodeURIComponent(c.projectId)+'&k='+encodeURIComponent(c.apiKey);
+    return hkPublicBase()+'catalog.html#p='+encodeURIComponent(c.projectId)+'&k='+encodeURIComponent(c.apiKey);
   }
   let pubTimer=null,lastPub='';
   async function publishCatalog(quiet){

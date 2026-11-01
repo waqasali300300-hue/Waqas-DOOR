@@ -1,0 +1,96 @@
+# Builds the Android app (APK) with all app files inside it, so it opens without
+# the website. On main the APK is put on the "apk-latest" release:
+#   https://github.com/waqasali300300-hue/Waqas-DOOR/releases/download/apk-latest/HK-Doors.apk
+# On pull requests it is only built (to check it still builds).
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Copy app files into the APK folder
+        run: |
+          mkdir -p android-app/www
+          cp -r index.html catalog.html manifest.json css js vendor icon-*.png android-app/www/
+          echo "window.HK_APK_BUILD=${{ github.run_number }};" > android-app/www/js/apk-build.js
+          sed -i 's#<script src="js/native.js"></script>#<script src="js/apk-build.js"></script>\n<script src="js/native.js"></script>#' android-app/www/index.html
+          grep -q 'js/apk-build.js' android-app/www/index.html
+
+      - name: Create Android project
+        working-directory: android-app
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add android
+          cp -r res/* android/app/src/main/res/
+          sed -i 's/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName "1.0"/versionName "1.${{ github.run_number }}"/' android/app/build.gradle
+          grep -q 'versionCode ${{ github.run_number }}' android/app/build.gradle
+          npx cap sync android
+
+      - name: Build
+        working-directory: android-app/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Sign
+        working-directory: android-app
+        env:
+          APK_SIGN_PASSWORD: ${{ secrets.APK_SIGN_PASSWORD }}
+        run: |
+          if [ -z "$APK_SIGN_PASSWORD" ]; then
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "::warning::APK_SIGN_PASSWORD secret not set; signing with a test key (this APK is only a build check)."
+              export APK_SIGN_PASSWORD="build-check-only-not-for-install"
+            else
+              echo "::error::Add the APK_SIGN_PASSWORD secret: repo Settings > Secrets and variables > Actions > New repository secret."
+              exit 1
+            fi
+          fi
+          pip install --quiet cryptography
+          mkdir -p "$RUNNER_TEMP/key"
+          python3 signing_key.py "$RUNNER_TEMP/key"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -f -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --key "$RUNNER_TEMP/key/key.pk8" --cert "$RUNNER_TEMP/key/cert.der" --out ../HK-Doors.apk aligned.apk
+          rm -rf "$RUNNER_TEMP/key"
+          "$BT/apksigner" verify --print-certs ../HK-Doors.apk
+          ls -la ../HK-Doors.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HK-Doors-apk
+          path: HK-Doors.apk
+
+      - name: Publish on the apk-latest release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-latest --yes --cleanup-tag || true
+          gh release create apk-latest HK-Doors.apk \
+            --target "${{ github.sha }}" \
+            --title "HK Doors Android App (version 1.${{ github.run_number }})" \
+            --notes "Phone mein HK-Doors.apk download kar ke install karein. build:${{ github.run_number }}"
