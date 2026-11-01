@@ -24,7 +24,7 @@
 
   function photoless(r){
     if(!r||typeof r!=='object')return r;
-    let {designPhoto,photo,...rest}=r;return rest;
+    let {designPhoto,photo,billPhoto,...rest}=r;return rest;
   }
   function capture(){
     let all=getDataSnapshot(),out={};

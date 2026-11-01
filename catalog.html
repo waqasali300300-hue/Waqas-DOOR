@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a3a6a">
+<title>Doors Catalog</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+  :root{--primary:#1a3a6a;--gold:#c8963e;--bg:#eef2f8;--card:#fff;--text:#1a2a3a;--muted:#6a7a8a;--border:#d4dce8;--green:#16a34a;}
+  @media (prefers-color-scheme: dark){:root{--bg:#0e1a2a;--card:#1a2a3a;--text:#dce4ee;--muted:#9aa8b8;--border:#2a3a4a;}}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding-bottom:150px;}
+  header{background:linear-gradient(135deg,#0f2547,var(--primary));color:#fff;padding:18px 16px 16px;text-align:center;border-bottom:3px solid var(--gold);}
+  header h1{font-size:22px;letter-spacing:.3px;}
+  header p{font-size:12px;opacity:.85;margin-top:4px;}
+  .wrap{max-width:900px;margin:auto;padding:14px 16px;}
+  .hint{font-size:12px;color:var(--muted);margin-bottom:10px;text-align:center;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+  .item{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
+  .ph{height:140px;background:#e8edf5 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:40px;}
+  .body{padding:10px;display:flex;flex-direction:column;gap:4px;flex:1;}
+  .size{font-weight:700;font-size:14px;}
+  .rate{font-size:12px;color:var(--muted);}
+  .price{font-size:14px;font-weight:700;color:var(--green);}
+  .qty{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:6px;}
+  .qty button{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:18px;cursor:pointer;}
+  .qty span{font-weight:700;font-size:15px;min-width:24px;text-align:center;}
+  .cart{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:2px solid var(--gold);padding:12px 16px;box-shadow:0 -6px 24px rgba(0,0,0,.12);}
+  .cart .row{max-width:900px;margin:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .cart input{flex:1;min-width:130px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;}
+  .cart .tot{font-size:13px;width:100%;}
+  .send{width:100%;padding:13px;border:0;border-radius:12px;background:#25d366;color:#fff;font-size:15px;font-weight:700;cursor:pointer;}
+  .send:disabled{background:#9ab;cursor:default;}
+  .msg{text-align:center;padding:40px 16px;color:var(--muted);font-size:14px;}
+  footer{text-align:center;font-size:11px;color:var(--muted);margin-top:16px;}
+</style>
+</head>
+<body>
+<header><h1 id="bizName">Catalog</h1><p id="bizSub"></p></header>
+<div class="wrap">
+  <p class="hint">Size chunein, ginti barhayein, phir neeche WhatsApp par order bhejein.<br>اپنا سائز اور تعداد چنیں، پھر نیچے سے واٹس ایپ پر آرڈر بھیجیں۔</p>
+  <div id="grid" class="grid"><div class="msg" style="grid-column:1/-1;">Load ho raha hai…</div></div>
+  <footer id="foot"></footer>
+</div>
+<div class="cart">
+  <div class="row">
+    <div class="tot" id="tot">Abhi kuch nahi chuna</div>
+    <input id="cName" placeholder="Aap ka naam">
+    <input id="cPhone" placeholder="Aap ka phone" inputmode="tel">
+    <button class="send" id="send" disabled onclick="sendOrder()">💬 WhatsApp par order bhejein</button>
+  </div>
+</div>
+<script>
+// Reads the owner's published catalog (public part of their Firestore) through
+// the REST API. Only the catalog is public; nothing else in the shop's data is.
+const params=new URLSearchParams(location.hash.slice(1));
+const PROJECT=params.get('p'),KEY=params.get('k');
+let catalog=null,qty={};
+function val(v){
+  if(!v)return null;
+  if('stringValue' in v)return v.stringValue;
+  if('integerValue' in v)return Number(v.integerValue);
+  if('doubleValue' in v)return v.doubleValue;
+  if('booleanValue' in v)return v.booleanValue;
+  if('nullValue' in v)return null;
+  if('arrayValue' in v)return (v.arrayValue.values||[]).map(val);
+  if('mapValue' in v)return fields(v.mapValue.fields||{});
+  return null;
+}
+function fields(f){let o={};for(const k in f)o[k]=val(f[k]);return o;}
+function docUrl(id){return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT)}/databases/(default)/documents/public/${encodeURIComponent(id)}?key=${encodeURIComponent(KEY)}`;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function money(n){return (catalog.currency||'Rs.')+Math.round(n||0).toLocaleString();}
+// "45x80 Mughleazam" → 45 × 80 inches → sq.ft
+function sqft(size){let m=String(size).match(/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i);return m?(+m[1])*(+m[2])/144:0;}
+function doorPrice(it){let s=sqft(it.size);return s?s*it.rate:0;}
+async function load(){
+  if(!PROJECT||!KEY){document.getElementById('grid').innerHTML='<div class="msg">Link poora nahi — dukaan se dobara link mangwayein.</div>';return;}
+  try{
+    let r=await fetch(docUrl('catalog'));
+    if(!r.ok)throw new Error(r.status===403?'band':'nahi mila');
+    catalog=fields((await r.json()).fields||{});
+  }catch(e){document.getElementById('grid').innerHTML=`<div class="msg">Catalog abhi dastiyab nahi (${esc(e.message)}).</div>`;return;}
+  document.title=(catalog.name||'Doors')+' — Catalog';
+  document.getElementById('bizName').textContent=catalog.name||'Catalog';
+  document.getElementById('bizSub').textContent=[catalog.tagline,catalog.address,catalog.phone].filter(Boolean).join(' · ');
+  document.getElementById('foot').textContent=catalog.footer||'';
+  let items=catalog.items||[];
+  if(!items.length){document.getElementById('grid').innerHTML='<div class="msg">Abhi koi item nahi.</div>';return;}
+  document.getElementById('grid').innerHTML=items.map((it,i)=>{
+    let p=doorPrice(it);
+    return `<div class="item"><div class="ph" id="ph${i}">🚪</div><div class="body">
+      <div class="size">${esc(it.size)}</div>
+      <div class="rate">${money(it.rate)} / sq.ft</div>
+      ${p?`<div class="price">${money(p)} <small style="font-weight:400;color:var(--muted);">/ darwaza</small></div>`:''}
+      <div class="qty"><button onclick="chg(${i},-1)">−</button><span id="q${i}">0</span><button onclick="chg(${i},1)">+</button></div>
+    </div></div>`;
+  }).join('');
+  items.forEach((it,i)=>{
+    if(!it.photo)return;
+    fetch(docUrl('ph_'+it.photo)).then(r=>r.ok?r.json():null).then(d=>{
+      let data=d&&d.fields&&val(d.fields.data);
+      if(data){let el=document.getElementById('ph'+i);el.style.backgroundImage=`url("${data}")`;el.textContent='';}
+    }).catch(()=>{});
+  });
+}
+function chg(i,d){qty[i]=Math.max(0,(qty[i]||0)+d);document.getElementById('q'+i).textContent=qty[i];summary();}
+function chosen(){return (catalog.items||[]).map((it,i)=>({it,n:qty[i]||0})).filter(x=>x.n>0);}
+function summary(){
+  let c=chosen(),total=c.reduce((s,x)=>s+doorPrice(x.it)*x.n,0),doors=c.reduce((s,x)=>s+x.n,0);
+  document.getElementById('tot').innerHTML=doors?`<b>${doors}</b> darwaze chune${total?` · andaza <b>${money(total)}</b>`:''}`:'Abhi kuch nahi chuna';
+  document.getElementById('send').disabled=!doors;
+}
+function sendOrder(){
+  let c=chosen();if(!c.length)return;
+  let name=document.getElementById('cName').value.trim(),phone=document.getElementById('cPhone').value.trim();
+  let total=c.reduce((s,x)=>s+doorPrice(x.it)*x.n,0);
+  let msg=`Assalam-o-Alaikum ${catalog.name||''},\nCatalog se order request:\n`+
+    c.map(x=>`• ${x.it.size} × ${x.n}${doorPrice(x.it)?` (${money(doorPrice(x.it)*x.n)})`:''}`).join('\n')+
+    (total?`\nAndaza kul: ${money(total)}`:'')+(name?`\nNaam: ${name}`:'')+(phone?`\nPhone: ${phone}`:'')+`\nMeharbani kar ke rate aur delivery confirm karein.`;
+  let to=String(catalog.whatsapp||catalog.phone||'').replace(/[^0-9]/g,'');if(to.startsWith('0'))to='92'+to.slice(1);
+  window.open(`https://wa.me/${to}?text=${encodeURIComponent(msg)}`,'_blank');
+}
+load();
+</script>
+</body>
+</html>

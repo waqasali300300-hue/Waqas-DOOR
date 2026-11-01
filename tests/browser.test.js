@@ -25,6 +25,7 @@ function serve(){
 
 // Mock Firestore shared by every "phone" in a test.
 const MOCK_DB=`
+  try{localStorage.setItem('hk_morning_off','1');}catch(e){}  // morning summary pops up on its own; tests open it themselves
   window.__cloud={erp:{},erp_photos:{}};
   window.__mockDb=function(){
     const clone=x=>JSON.parse(JSON.stringify(x));
@@ -457,6 +458,62 @@ test('udhaar limit warning, reminders, order summary, karigar report, import, vo
     return out;
   });
   assert.deepStrictEqual(r,{warned:true,saved:1,reminder:true,summary:true,report:true,import:{added:1,skipped:1},voice:['payment',20000,'Bilal Wood'],voiceUr:5000,urdu:true});
+});
+
+test('bill photo, morning summary, online catalog publish and customer page',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));let out={};
+    // bill photo on kharcha
+    let c=document.createElement('canvas');c.width=40;c.height=30;let png=await new Promise(r=>c.toBlob(r,'image/png'));
+    openExpenseModal();await wait(30);
+    document.getElementById('expDesc').value='Bijli';document.getElementById('expAmount').value='5000';
+    await hkPickBill(new File([png],'bill.png',{type:'image/png'}));
+    saveExpense();await wait(50);
+    out.bill=!!(expenses[0]&&expenses[0].billPhoto&&expenses[0].billPhoto.startsWith('data:image/jpeg'));
+    switchTab('tabExpenses');await wait(50);out.billBtn=!!document.querySelector('#expensesList .hk-bill-btn');
+    out.cloudHasNoPhoto=!JSON.stringify(getCloudSnapshot().expenses).includes('data:image');
+    // morning summary
+    let t=new Date().toISOString().slice(0,10);
+    parties=[{id:1,name:'Ali',phone:'0300'}];
+    orders=[{id:5,orderNo:'ORD-5',partyId:1,date:t,deliveryDate:t,orderTotal:9000,payments:[],status:'cutting'}];
+    openMorning();out.morning=document.getElementById('hkMorningB').innerText;closeModal('hkMorning');
+    // publish catalog to the mock cloud
+    localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'KEY1',authDomain:'d',projectId:'proj1',appId:'a',email:'e@x.com'}));
+    db=__mockDb();__cloud.public={};cloudEnabled=true;
+    priceList=[{id:1,size:'45x80 Mughleazam',rate:500,photo:'data:image/jpeg;base64,AAAA'},{id:2,size:'39x78',rate:440}];
+    businessProfile.whatsapp='03001112222';
+    out.pub=await publishCatalog(true);
+    out.catalogDoc=__cloud.public.catalog&&__cloud.public.catalog.items.length;
+    out.photoDoc=Object.keys(__cloud.public).filter(k=>k.startsWith('ph_')).length;
+    openCatalog();out.link=document.querySelector('#hkCatalogB input').value;
+    return out;
+  });
+  assert.ok(r.bill&&r.billBtn&&r.cloudHasNoPhoto,JSON.stringify(r));
+  assert.ok(r.morning.includes('ORD-5')&&r.morning.includes('aaj deni hai'),r.morning);
+  assert.strictEqual(r.pub,true);
+  assert.strictEqual(r.catalogDoc,2);
+  assert.strictEqual(r.photoDoc,1);
+  assert.ok(r.link.includes('catalog.html#p=proj1&k=KEY1'),r.link);
+  // Customer page, with the public Firestore REST API answered locally
+  const enc=v=>typeof v==='number'?{doubleValue:v}:typeof v==='string'?{stringValue:v}:Array.isArray(v)?{arrayValue:{values:v.map(enc)}}:{mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,enc(x)]))}};
+  await page.route('https://firestore.googleapis.com/**',route=>{
+    let u=route.request().url();
+    if(u.includes('/public/catalog'))return route.fulfill({json:{fields:enc({name:'HK Doors',whatsapp:'03001112222',currency:'Rs.',items:[{size:'45x80 Mughleazam',rate:500,photo:'p1'},{size:'39x78',rate:440,photo:''}]}).mapValue.fields}});
+    return route.fulfill({json:{fields:{data:{stringValue:'data:image/png;base64,iVBORw0KGgo='}}}});
+  });
+  const base=page.url().replace(/index\.html.*$/,'');
+  await page.goto(base+'catalog.html#p=proj1&k=KEY1');
+  await page.waitForSelector('.item');
+  const c=await page.evaluate(()=>{
+    let opened='';window.open=u=>{opened=u;return null;};
+    chg(0,1);chg(0,1);chg(1,1);
+    document.getElementById('cName').value='Bilal';sendOrder();
+    return {items:document.querySelectorAll('.item').length,tot:document.getElementById('tot').innerText,msg:decodeURIComponent(opened)};
+  });
+  assert.strictEqual(c.items,2);
+  // 45x80 = 25 sq.ft × 500 = 12,500 per door × 2 = 25,000; 39x78 = 21.125 × 440 = 9,295
+  assert.ok(c.tot.includes('3')&&c.tot.includes('34,295'),c.tot);
+  assert.ok(c.msg.includes('wa.me/923001112222')&&c.msg.includes('45x80 Mughleazam × 2')&&c.msg.includes('Bilal'),c.msg);
 });
 
 (async()=>{

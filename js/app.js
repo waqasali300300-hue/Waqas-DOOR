@@ -156,7 +156,7 @@ function updateFbRulesHint(){
   el.textContent=fbRulesText(email);
 }
 function fbRulesText(email){
-  return "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null\n        && request.auth.token.email in ['"+email+"'];\n    }\n  }\n}";
+  return "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null\n        && request.auth.token.email in ['"+email+"'];\n    }\n    // Online catalog: anyone with the link can read it; only you can change it.\n    match /public/{doc} {\n      allow read: if true;\n    }\n  }\n}";
 }
 function copyFbRules(){
   let t=document.getElementById('fbRulesCode')?.textContent||'';
@@ -170,7 +170,7 @@ function setSyncStatus(s){let dot=document.getElementById('syncDot'),txt=documen
 // Each photo goes to its own document in 'erp_photos', named after its content.
 // The main data only carries that name (e.g. designPhotoRef), and other phones
 // download the photo from it.
-const PHOTO_FIELDS={orders:'designPhoto',quotations:'designPhoto',priceList:'photo'};
+const PHOTO_FIELDS={orders:'designPhoto',quotations:'designPhoto',priceList:'photo',expenses:'billPhoto',purchases:'billPhoto'};
 const MAX_PHOTO_CHARS=1000000;
 let _photoRefCache=new Map(),_photosUploaded=null,_photoFetching=new Set(),_photoRulesWarned=false;
 
@@ -203,7 +203,7 @@ function getCloudSnapshot(){
   return JSON.parse(JSON.stringify(snap));
 }
 
-function photoCollections(){return {orders,quotations,priceList};}
+function photoCollections(){return {orders,quotations,priceList,expenses,purchases};}
 
 // Every photo currently on this phone, by its ref.
 function localPhotoMap(){
