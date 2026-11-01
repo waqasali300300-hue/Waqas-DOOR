@@ -406,8 +406,12 @@ function closeModal(id){
   }
 }
 function openModal(id){
-  document.getElementById(id)?.classList.add('open');
+  let el=document.getElementById(id);
+  el?.classList.add('open');
   _modalStack.push(id);
+  // The newest window always sits on top (a confirm box opened from another
+  // window was hidden behind it).
+  if(el)el.style.zIndex=String(500+_modalStack.length);
   if(!_suppressHistory){
     history.pushState({hkModal:id},'',location.href);
   }

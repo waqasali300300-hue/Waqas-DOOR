@@ -607,6 +607,28 @@ test('monthly bills, rate list PDF, tools and machines, sales target',async page
   assert.strictEqual(r.staffDelete,false);
 });
 
+test('confirm box opened from another window shows on top and deletes (Activity, bills)',async page=>{
+  await page.evaluate(()=>{
+    let at=new Date().toISOString();
+    activityLog=[{id:5001,at,user:'Owner',type:'add',coll:'orders',rid:1,text:'ORD-6 Aziz'},{id:5002,at,user:'Owner',type:'del',coll:'orders',rid:1,text:'ORD-6 Aziz'}];
+    monthlyBills=[{id:6001,name:'Bijli ka bill',amount:9000,day:28}];
+    saveAll();activityLog=activityLog.filter(a=>a.id>=5001&&a.id<=5002);saveAll();openActivityLog();
+  });
+  await page.locator('#hkActivityBody button[title="Yeh line mitayein"]').first().click();
+  await page.locator('#confirmModalOkBtn').click(); // fails if another window covers it
+  await page.waitForTimeout(500);
+  assert.strictEqual(await page.evaluate(()=>activityLog.length),1);
+  await page.locator('#hkActivityBody button',{hasText:'Sab saaf karein'}).click();
+  await page.locator('#confirmModalOkBtn').click();
+  await page.waitForTimeout(500);
+  assert.strictEqual(await page.evaluate(()=>activityLog.length),0);
+  await page.evaluate(()=>{closeModal('hkActivityModal');openBills();});
+  await page.locator('#hkBillsModalB button',{hasText:'🗑'}).click();
+  await page.locator('#confirmModalOkBtn').click();
+  await page.waitForTimeout(500);
+  assert.strictEqual(await page.evaluate(()=>monthlyBills.length),0);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
