@@ -227,7 +227,7 @@
     document.querySelectorAll('.drawer-item').forEach(b=>{
       let t=b.dataset.tab,oc=b.getAttribute('onclick')||'';
       let ownerOnly=(t&&OWNER_TABS.includes(t))||/openProfitReport|exportExcel|openDesignReport|openYearReport|openDataSafety|openActivityLog/.test(oc);
-      if(ownerOnly)b.style.display=staff?'none':'';
+      if(ownerOnly)b.classList.toggle('hk-staff-hide',staff);
     });
     if(staff&&OWNER_TABS.includes(document.querySelector('.tab.active')?.id))switchTab('tabHome');
   }

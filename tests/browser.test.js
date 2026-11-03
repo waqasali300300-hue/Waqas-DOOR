@@ -910,13 +910,13 @@ test('stock count, design report, staff limits, year closing',async page=>{
     document.querySelectorAll('.modal.open').forEach(m=>m.classList.remove('open'));_modalStack.length=0;
     // Staff
     staffUsers=[{id:99,name:'Bilal',pin:'1111'}];activeUserId=99;updateUserBadge();
-    let repHidden=document.querySelector('.drawer-item[data-tab="tabReports"]').style.display==='none';
-    let bankHidden=document.querySelector('.drawer-item[data-tab="tabBankBook"]').style.display==='none';
+    let repHidden=document.querySelector('.drawer-item[data-tab="tabReports"]').classList.contains('hk-staff-hide');
+    let bankHidden=document.querySelector('.drawer-item[data-tab="tabBankBook"]').classList.contains('hk-staff-hide');
     switchTab('tabReports');let tab=document.querySelector('.tab.active').id;
     viewOrderDetail(5);let detail=document.getElementById('orderDetailContent').innerText;
     let designBlocked=(openDesignReport(),!document.getElementById('hkDesignModal')?.classList.contains('open'));
     activeUserId=null;updateUserBadge();
-    let ownerSees=document.querySelector('.drawer-item[data-tab="tabReports"]').style.display!=='none';
+    let ownerSees=!document.querySelector('.drawer-item[data-tab="tabReports"]').classList.contains('hk-staff-hide');
     return {stock,design,year,meta:meta&&[meta.kind,meta.orders],repHidden,bankHidden,tab,staffProfit:/Net Profit/.test(detail),designBlocked,ownerSees,closed:businessProfile.closedYears};
   });
   assert.strictEqual(r.stock.wood,r.stock.expect);
@@ -1004,6 +1004,53 @@ test('live khata link and page; QR scan reads a code and opens the order',async 
   await page.waitForSelector('table');
   const text=await page.locator('#main').innerText();
   assert.ok(text.includes('Aziz bhai')&&text.includes('17,000')&&text.includes('ORD-1'),text);
+});
+
+test('new main menu: groups, quick actions, most used, search, staff; phone reminders plan',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    localStorage.setItem('hk_menu_use',JSON.stringify({tabOrders:5,openBills:3,openCalculator:1}));
+    openDrawer();await wait(100);
+    let groups=[...document.querySelectorAll('#hkMenu .hk-menu-sec[data-group]')].map(s=>[s.dataset.group,s.querySelectorAll('.drawer-item').length]);
+    let loose=[...document.querySelectorAll('#drawerNav .drawer-item')].filter(b=>!b.closest('#hkMenu')).length;
+    let total=document.querySelectorAll('#hkMenu .hk-menu-sec[data-group] .drawer-item').length;
+    let fav=[...document.querySelectorAll('#hkMenuFav .drawer-item')].map(b=>b.dataset.key);
+    let labels=['tabOrders','openLoans','openBills'].map(k=>document.querySelector(`#hkMenu .drawer-item[data-key="${k}"] .t-label`)?.textContent);
+    // Clicking a tile still works and is counted.
+    document.querySelector('#hkMenu .drawer-item[data-key="tabKhata"]').click();await wait(50);
+    let tab=document.querySelector('.tab.active').id,use=JSON.parse(localStorage.getItem('hk_menu_use')).tabKhata;
+    // Fold a group, search finds items inside it.
+    hkToggleMenuGroup('maal');
+    filterDrawerItems('rate');
+    let shown=[...document.querySelectorAll('#hkMenu .hk-menu-sec[data-group] .drawer-item')].filter(b=>b.offsetParent!==null).map(b=>b.dataset.key);
+    filterDrawerItems('');
+    // Staff: owner-only tiles stay hidden even after a search.
+    staffUsers=[{id:99,name:'Bilal',pin:'1'}];activeUserId=99;updateUserBadge();filterDrawerItems('rep');filterDrawerItems('');
+    let staffSeesReports=document.querySelector('#hkMenu .drawer-item[data-key="tabReports"]').offsetParent!==null;
+    activeUserId=null;updateUserBadge();closeDrawer();
+    // Reminders plan.
+    let t0=new Date();t0.setHours(6,0,0,0);
+    let d=x=>{let y=new Date(t0);y.setDate(y.getDate()+x);return y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0');};
+    orders=[{id:1,orderNo:'ORD-1',partyId:1,date:d(0),deliveryDate:d(0),status:'ready',orderTotal:1,payments:[]},{id:2,orderNo:'ORD-2',partyId:1,date:d(0),deliveryDate:d(-3),status:'pending',orderTotal:1,payments:[]},
+      {id:3,orderNo:'ORD-3',partyId:1,date:d(0),deliveryDate:d(2),status:'delivered',orderTotal:1,payments:[]}];
+    cheques=[{id:5,status:'pending',dueDate:d(1),amount:20000}];
+    monthlyBills=[{id:6,name:'Bijli ka bill',amount:9000,day:parseInt(d(2).slice(8))}];expenses=[];
+    let plan=hkNotifyPlan(t0).map(n=>[n.id-7000,n.body,n.schedule.at.getHours()]);
+    return {groups,loose,total,fav,labels,tab,use,shown,staffSeesReports,plan};
+  });
+  assert.strictEqual(r.loose,0,'every item sits in a group');
+  assert.ok(r.total>=55,String(r.total));
+  assert.ok(r.groups.every(g=>g[1]>0),JSON.stringify(r.groups));
+  assert.deepStrictEqual(r.fav,['tabOrders','openBills']);
+  assert.deepStrictEqual(r.labels,['Orders','Zaati Qarz','Mahana Bill']);
+  assert.deepStrictEqual([r.tab,r.use],['tabKhata',1]);
+  assert.deepStrictEqual(r.shown.sort(),['openPriceListModal','openRateChange','openRateListPdf'].sort());
+  assert.strictEqual(r.staffSeesReports,false);
+  assert.strictEqual(r.plan.length,3,JSON.stringify(r.plan));
+  assert.ok(r.plan[0][1].includes('ORD-1')&&r.plan[0][1].includes('1 order late'),r.plan[0][1]);
+  assert.ok(r.plan[1][1].includes('cheque')&&r.plan[2][1].includes('Bijli ka bill'),JSON.stringify(r.plan));
+  assert.ok(!JSON.stringify(r.plan).includes('ORD-3'));
+  assert.ok(r.plan.every(p=>p[2]===9));
 });
 
 (async()=>{
