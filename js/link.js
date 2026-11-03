@@ -112,6 +112,72 @@
     if(info&&!document.getElementById('hkLinkBtn'))info.insertAdjacentHTML('beforebegin','<button id="hkLinkBtn" class="btn btn-gold btn-sm" style="margin-top:8px;" onclick="closeModal(\'settingsModal\');openLinkDevice()">📲 Doosra device jorein (laptop / mobile)</button>');
   };
 
+  // ── New device (e.g. the APK): find the shop's cloud by itself ──
+  // A connected owner device saves the shop's cloud address (the same public
+  // identifiers that are already in every catalog link) to public/connect.
+  // A new device reads it, so only the email and password are typed.
+  // The email and password are never saved there.
+  const SHOP_PROJECT='hkw-doors';
+  let connectSent=false;
+  async function publishConnect(){
+    let c=getFirebaseCfg();
+    if(connectSent||!c||!c.email||!cloudEnabled||!db)return;
+    connectSent=true;
+    try{await db.collection('public').doc('connect').set({apiKey:c.apiKey,authDomain:c.authDomain||'',projectId:c.projectId,appId:c.appId||'',updatedAt:new Date().toISOString()});}
+    catch(e){connectSent=false;}
+  }
+  let origSyncNow=window.syncNow;
+  window.syncNow=async function(){
+    let r=await origSyncNow.apply(this,arguments);
+    if(r)publishConnect();
+    return r;
+  };
+  async function fetchShopConnect(){
+    try{
+      let r=await fetch(`https://firestore.googleapis.com/v1/projects/${SHOP_PROJECT}/databases/(default)/documents/public/connect`,{cache:'no-store'});
+      if(!r.ok)return null;
+      let f=(await r.json()).fields||{},v=k=>(f[k]&&f[k].stringValue)||'';
+      let d={apiKey:v('apiKey'),authDomain:v('authDomain'),projectId:v('projectId'),appId:v('appId')};
+      return d.apiKey&&d.projectId?d:null;
+    }catch(e){return null;}
+  }
+  async function autoFillSetup(){
+    if(getFirebaseCfg())return false;
+    let d=await fetchShopConnect();
+    let el=document.getElementById('fb_linkCode');
+    if(!d||!el||el.value.trim())return false;
+    el.value=PREFIX+btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+    applyLinkCode(true);
+    let msg=document.getElementById('fb_linkMsg');
+    if(msg)msg.innerHTML='✅ Aap ki dukaan ka cloud khud mil gaya. Ab neeche apni <b>Gmail</b> aur <b>password</b> (jo cloud ke liye banaya tha) likh kar <b>Connect</b> dabayein — sara data (parties, orders, khata) aa jayega.';
+    document.getElementById('fb_email')?.focus();
+    return true;
+  }
+  // Forgot the cloud password: Firebase emails a link to set a new one.
+  window.fbForgotPassword=async function(){
+    let v=id=>(document.getElementById(id)?.value||'').trim();
+    let email=v('fb_email').toLowerCase();
+    if(!email||!v('fb_apiKey')){showToast('⚠️ Pehle code lagayein aur email likhein');return;}
+    try{
+      let app=(firebase.apps||[]).find(a=>a.name==='hkReset')||firebase.initializeApp({apiKey:v('fb_apiKey'),authDomain:v('fb_authDomain'),projectId:v('fb_projectId'),appId:v('fb_appId')},'hkReset');
+      await app.auth().sendPasswordResetEmail(email);
+      showToast('📧 '+email+' par naya password banane ki email bhej di — Gmail dekhein');
+    }catch(e){showToast('⚠️ Email nahi gayi: '+(e&&e.message||e));}
+  };
+  function addForgotLink(){
+    let pass=document.getElementById('fb_password');
+    if(!pass||document.getElementById('fbForgotBtn'))return;
+    pass.insertAdjacentHTML('afterend','<button type="button" id="fbForgotBtn" class="btn btn-outline btn-xs" style="margin:2px 0 8px;" onclick="fbForgotPassword()">🔑 Password bhool gaye? Email par naya banayein</button>');
+  }
+  window.hkAutoFillSetup=autoFillSetup;
+  let origOpenFbSetup=window.openFbSetup;
+  window.openFbSetup=function(){
+    let r=origOpenFbSetup.apply(this,arguments);
+    try{addLinkBox();addForgotLink();}catch(e){}
+    autoFillSetup();
+    return r;
+  };
+
   // ── Home: say clearly whether this device shares data ──
   function renderCloudBanner(){
     let head=document.querySelector('#tabHome .hm-head');if(!head)return;
@@ -152,7 +218,11 @@
     open();
   }
   window.addEventListener('hashchange',handleJoinLink);
-  document.addEventListener('hk:ready',()=>{addLinkBox();renderCloudBanner();handleJoinLink();});
+  document.addEventListener('hk:ready',()=>{
+    addLinkBox();renderCloudBanner();handleJoinLink();
+    // A brand-new APK with no data: open Cloud Setup straight away.
+    if(window.hkNative&&!getFirebaseCfg()&&!parties.length&&!orders.length&&!location.hash)setTimeout(()=>window.openFbSetup(),1500);
+  });
   window.hkLinkCode={make:makeCode,read:readCode};
 
   // ── Reset All Data, without breaking the link between devices ──

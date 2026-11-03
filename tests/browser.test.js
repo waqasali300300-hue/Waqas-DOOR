@@ -700,6 +700,44 @@ test('fonts are bundled with the app (work offline)',async page=>{
   assert.deepStrictEqual(r.ok,[true,true,true]);
 });
 
+test('new APK finds the shop cloud by itself; connected app shares only the public address',async page=>{
+  // 1. Connected owner app saves the public connect details after a sync.
+  const shared=await page.evaluate(async()=>{
+    localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'AIzaShop',authDomain:'hkw-doors.firebaseapp.com',projectId:'hkw-doors',appId:'1:2:web:3',email:'owner@gmail.com'}));
+    db=__mockDb();__cloud.public={};cloudEnabled=true;
+    await syncNow();await new Promise(r=>setTimeout(r,100));
+    return __cloud.public.connect;
+  });
+  assert.strictEqual(shared.apiKey,'AIzaShop');
+  assert.ok(!/owner@gmail|pass|email/i.test(JSON.stringify(shared)),JSON.stringify(shared));
+  // 2. A brand-new APK reads them and opens Cloud Setup with everything filled.
+  const ctx=page.context();
+  await page.evaluate(()=>{localStorage.clear();indexedDB.deleteDatabase&&indexedDB.databases&&indexedDB.databases().then(l=>l.forEach(d=>indexedDB.deleteDatabase(d.name)));});
+  await ctx.route('https://firestore.googleapis.com/**',route=>route.fulfill({status:200,contentType:'application/json',
+    body:JSON.stringify({fields:{apiKey:{stringValue:'AIzaShop'},authDomain:{stringValue:'hkw-doors.firebaseapp.com'},projectId:{stringValue:'hkw-doors'},appId:{stringValue:'1:2:web:3'}}})}));
+  await page.addInitScript(()=>{window.Capacitor={isNativePlatform:()=>true,Plugins:{}};localStorage.setItem('hk_morning_off','1');});
+  await page.reload();
+  await page.waitForFunction(()=>document.getElementById('fbSetupOverlay')?.classList.contains('open'),null,{timeout:8000});
+  await page.waitForFunction(()=>document.getElementById('fb_apiKey')?.value==='AIzaShop',null,{timeout:5000});
+  const r=await page.evaluate(()=>({
+    filled:['fb_apiKey','fb_projectId','fb_appId','fb_email'].map(i=>document.getElementById(i).value),
+    msg:document.getElementById('fb_linkMsg').innerText,
+    focus:document.activeElement&&document.activeElement.id}));
+  assert.deepStrictEqual(r.filled,['AIzaShop','hkw-doors','1:2:web:3','']);
+  assert.ok(r.msg.includes('password'),r.msg);
+  assert.strictEqual(r.focus,'fb_email');
+  // Forgot password sends the reset email to the owner.
+  const reset=await page.evaluate(async()=>{
+    let sent=null;
+    firebase.initializeApp=(cfg,name)=>({name,auth:()=>({sendPasswordResetEmail:async e=>{sent=[e,cfg.projectId];}})});
+    document.getElementById('fb_email').value='owner@gmail.com';
+    document.getElementById('fbForgotBtn').click();
+    await new Promise(r=>setTimeout(r,100));
+    return sent;
+  });
+  assert.deepStrictEqual(reset,['owner@gmail.com','hkw-doors']);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
