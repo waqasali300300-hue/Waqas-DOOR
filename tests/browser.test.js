@@ -845,6 +845,91 @@ test('karigar fix screen, old customers, APK back button',async page=>{
   assert.deepStrictEqual([r.modalClosed,r.home,r.min],[true,'tabHome',1]);
 });
 
+test('catalog request link becomes an estimate; karigar advance is deducted and cash book stays right',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Aziz bhai',phone:'0300-1234567'}];quotations=[];saveAll();
+    let code=btoa(unescape(encodeURIComponent(JSON.stringify({n:'Aziz',p:'+92 300 1234567',i:[['45x80 Mughleazam',2,950],['Rose Design',1,800]]})))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    location.hash='#est='+code;await wait(150);
+    let shown=document.getElementById('hkReqModalB')?.innerText||'';
+    document.getElementById('hkReqMake').click();await wait(150);
+    let q=quotations[quotations.length-1];
+    let est={party:q.partyId,doors:q.doors.map(d=>[d.size,d.qty,Math.round(d.doorAmount)]),total:Math.round(q.quoteTotal),parties:parties.length,hash:location.hash,editing:document.getElementById('quotationModal')?.classList.contains('open')};
+    document.querySelectorAll('.modal.open').forEach(m=>m.classList.remove('open'));_modalStack.length=0;
+    // Advance
+    karigars=[{id:7,name:'Rafiq'}];bankTransactions=[];
+    labours=[{id:30,labourNo:'LAB-1',karigarId:7,totalCost:10000,paid:0,date:'2026-11-01'}];saveAll();
+    openKarigarPay();
+    document.getElementById('hkAdvKar').value='7';document.getElementById('hkAdvAmt').value='3000';giveKarigarAdvance();
+    let afterAdv=bankTransactions.map(t=>[t.type,t.amount]);
+    let cashDefault=document.getElementById('kpAmt_7').value,boxOn=document.getElementById('kpAdv_7').checked;
+    payKarigar(7);
+    let l=labours[0];
+    return {shown,est,afterAdv,cashDefault,boxOn,paid:l.paid,advPaid:l.advPaid,left:hkAdvanceLeft(7),
+      cashOut:bankTransactions.filter(t=>t.type==='withdrawal').reduce((s,t)=>s+t.amount,0),tx:bankTransactions.map(t=>t.amount)};
+  });
+  assert.ok(r.shown.includes('45x80 Mughleazam')&&r.shown.includes('Rose Design'),r.shown);
+  assert.strictEqual(r.est.party,1,'matched by phone');
+  assert.strictEqual(r.est.parties,1);
+  assert.deepStrictEqual(r.est.doors,[['45x80 Mughleazam',2,47500],['Rose Design',1,0]]);
+  assert.strictEqual(r.est.total,47500);
+  assert.strictEqual(r.est.hash,'');
+  assert.ok(r.est.editing);
+  assert.deepStrictEqual(r.afterAdv,[['withdrawal',3000]]);
+  assert.deepStrictEqual([r.cashDefault,r.boxOn],['7000',true]);
+  assert.deepStrictEqual([r.paid,r.advPaid,r.left],[10000,3000,0]);
+  assert.strictEqual(r.cashOut,10000,JSON.stringify(r.tx));
+});
+
+test('stock count, design report, staff limits, year closing',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    woodTypes=[{id:1,name:'Kail',rate:5000,openingStock:100}];inventory=[{id:50,name:'Kabza',qty:40,unit:'pcs',cost:150}];
+    let y=String(new Date().getFullYear()),d=y+'-03-05';
+    parties=[{id:1,name:'Aziz bhai'}];
+    orders=[{id:5,orderNo:'ORD-1',partyId:1,date:d,orderTotal:60000,netProfit:20000,payments:[{amount:10000,date:d}],
+      doors:[{size:'45x80 Mughleazam',qty:2,doorAmount:50000,labourPerDoor:2000,woodId:1,w:45,h:80,cftMode:'auto'},{size:'Rose Design',qty:1,doorAmount:10000,woodId:1}]}];
+    expenses=[{id:9,description:'Bijli',amount:4000,date:d}];saveAll();
+    // Stock count
+    let before=getWoodStockRemaining(woodTypes[0]);
+    openStockCount();
+    document.querySelector('.hk-sc[data-kind="wood"]').value=String(Math.round((before-3)*100)/100);
+    document.querySelector('.hk-sc[data-kind="inv"]').value='35';
+    saveStockCount();
+    let stock={wood:Math.round(getWoodStockRemaining(woodTypes[0])*100)/100,expect:Math.round((before-3)*100)/100,inv:inventory[0].qty,hist:businessProfile.stockCounts.length,
+      value:businessProfile.stockCounts[0].value};
+    closeModal('hkStockModal');
+    // Design report
+    openDesignReport('year');let design=[...document.querySelectorAll('#hkDesignModalB .hk-dr-row > div:first-child > b:first-child')].map(b=>b.innerText);closeModal('hkDesignModal');
+    // Year
+    localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'k',authDomain:'d',projectId:'hkw-doors',appId:'a'}));
+    db=__mockDb();cloudEnabled=true;
+    openYearReport(y);let year=document.getElementById('hkYearPreview').innerText;
+    closeYear(y);await wait(50);customConfirmOk();await wait(1500);
+    let meta=__cloud.erp_backup_meta&&__cloud.erp_backup_meta['year-'+y];
+    document.querySelectorAll('.modal.open').forEach(m=>m.classList.remove('open'));_modalStack.length=0;
+    // Staff
+    staffUsers=[{id:99,name:'Bilal',pin:'1111'}];activeUserId=99;updateUserBadge();
+    let repHidden=document.querySelector('.drawer-item[data-tab="tabReports"]').style.display==='none';
+    let bankHidden=document.querySelector('.drawer-item[data-tab="tabBankBook"]').style.display==='none';
+    switchTab('tabReports');let tab=document.querySelector('.tab.active').id;
+    viewOrderDetail(5);let detail=document.getElementById('orderDetailContent').innerText;
+    let designBlocked=(openDesignReport(),!document.getElementById('hkDesignModal')?.classList.contains('open'));
+    activeUserId=null;updateUserBadge();
+    let ownerSees=document.querySelector('.drawer-item[data-tab="tabReports"]').style.display!=='none';
+    return {stock,design,year,meta:meta&&[meta.kind,meta.orders],repHidden,bankHidden,tab,staffProfit:/Net Profit/.test(detail),designBlocked,ownerSees,closed:businessProfile.closedYears};
+  });
+  assert.strictEqual(r.stock.wood,r.stock.expect);
+  assert.strictEqual(r.stock.inv,35);
+  assert.strictEqual(r.stock.hist,1);
+  assert.strictEqual(r.stock.value,-3*5000-5*150);
+  assert.ok(r.design[0].includes('Mughleazam')&&r.design[1].includes('Rose Design'),JSON.stringify(r.design));
+  assert.ok(r.year.includes('60,000')&&r.year.includes('Aziz bhai'),r.year.slice(0,300));
+  assert.deepStrictEqual(r.meta,['year',1]);
+  assert.deepStrictEqual(r.closed,[String(new Date().getFullYear())]);
+  assert.deepStrictEqual([r.repHidden,r.bankHidden,r.tab,r.staffProfit,r.designBlocked,r.ownerSees],[true,true,'tabHome',false,true,true]);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
