@@ -777,6 +777,74 @@ test('data safety: dated cloud copies, old ones tidied, view and restore an old 
   assert.deepStrictEqual(r.before,[[0,2]]);
 });
 
+test('customer tracking link: only that order is shared, follows changes, status page shows it',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'k',authDomain:'d',projectId:'hkw-doors',appId:'a'}));
+    db=__mockDb();__cloud.public={};cloudEnabled=true;
+    parties=[{id:1,name:'Aziz bhai',phone:'03001234567'},{id:2,name:'Secret party',phone:'0300'}];
+    orders=[{id:5,orderNo:'ORD-7',partyId:1,date:'2026-11-01',status:'cutting',orderTotal:90000,doors:[{size:'45x80',qty:2,doorAmount:90000}],payments:[{amount:30000,date:'2026-11-01'}]},
+            {id:6,orderNo:'ORD-8',partyId:2,date:'2026-11-01',orderTotal:111,payments:[]}];
+    saveAll();
+    let opened='';window.open=u=>{opened=u;};
+    viewOrderDetail(5);let btn=!!document.querySelector('.hk-track-btn');
+    await shareOrderTracking(5);
+    let key=Object.keys(__cloud.public).find(k=>k.startsWith('t_'));
+    let first=JSON.parse(JSON.stringify(__cloud.public[key]));
+    orders[0].status='ready';orders[0].payments.push({amount:10000,date:'2026-11-02'});saveAll();
+    await wait(3400);
+    return {btn,opened:decodeURIComponent(opened),key,first,later:__cloud.public[key],all:JSON.stringify(__cloud.public),token:orders[0].trackId};
+  });
+  assert.ok(r.btn);
+  assert.ok(r.opened.includes('status.html#p=hkw-doors&t='+r.token),r.opened);
+  assert.strictEqual(r.key,'t_'+r.token);
+  assert.ok(/^[a-z2-9]{12}$/.test(r.token),r.token);
+  assert.deepStrictEqual([r.first.orderNo,r.first.status,r.first.paid,r.first.balance],['ORD-7','cutting',30000,60000]);
+  assert.deepStrictEqual([r.later.status,r.later.balance],['ready',50000]);
+  assert.ok(!r.all.includes('Secret party')&&!r.all.includes('ORD-8'),'other orders are not shared');
+  // The customer's page.
+  const fs=v=>v===null?{nullValue:null}:Array.isArray(v)?{arrayValue:{values:v.map(fs)}}:typeof v==='object'?{mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,fs(x)]))}}:typeof v==='number'?{doubleValue:v}:{stringValue:String(v)};
+  await page.context().route('https://firestore.googleapis.com/**',route=>route.request().url().includes('t_'+r.token)
+    ?route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({fields:fs(r.later).mapValue.fields})})
+    :route.fulfill({status:404,body:'{}'}));
+  await page.goto(page.url().replace(/index\.html.*$/,'status.html#p=hkw-doors&t='+r.token));
+  await page.waitForSelector('.steps');
+  const text=await page.locator('#main').innerText();
+  assert.ok(text.includes('ORD-7')&&text.includes('Aziz bhai'),text);
+  assert.ok(text.includes('50,000'),text);
+  assert.ok(await page.locator('.step.now b').innerText()==='Tayyar');
+});
+
+test('karigar fix screen, old customers, APK back button',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    karigars=[{id:7,name:'Rafiq'}];
+    labours=[{id:30,labourNo:'LAB-1',totalCost:1000,date:'2026-11-01'},{id:31,labourNo:'LAB-2',totalCost:2000,karigarId:99},{id:32,labourNo:'LAB-3',karigarId:7,totalCost:5}];
+    let old=new Date(Date.now()-90*86400000).toISOString().slice(0,10),recent=new Date().toISOString().slice(0,10);
+    parties=[{id:1,name:'Purana Gahak',phone:'0300'},{id:2,name:'Naya Gahak',phone:'0301'}];
+    orders=[{id:5,orderNo:'ORD-1',partyId:1,date:old,orderTotal:1,payments:[]},{id:6,orderNo:'ORD-2',partyId:2,date:recent,orderTotal:1,payments:[]}];
+    saveAll();renderDashboard();
+    let attention=document.getElementById('hmAttention').innerText;
+    openLabourFix();
+    let rows=document.querySelectorAll('.hk-labfix').length;
+    document.querySelectorAll('.hk-labfix').forEach(s=>s.value='7');saveLabourFix();
+    let fixed=labours.map(l=>l.karigarId);
+    closeModal('hkLabFixModal');
+    openOldCustomers();let oldList=document.getElementById('hkOldCustModalB').innerText;closeModal('hkOldCustModal');
+    // Back button.
+    let min=0;window.Capacitor={Plugins:{App:{minimizeApp:()=>{min++;}}}};
+    openSettingsModal();hkBackButton();let modalClosed=!document.getElementById('settingsModal').classList.contains('open');
+    switchTab('tabOrders');hkBackButton();let home=document.querySelector('.tab.active').id;
+    hkBackButton();
+    return {attention,rows,fixed,oldList,modalClosed,home,min};
+  });
+  assert.ok(r.attention.includes('2 labour record'),r.attention);
+  assert.strictEqual(r.rows,2);
+  assert.deepStrictEqual(r.fixed,[7,7,7]);
+  assert.ok(r.oldList.includes('Purana Gahak')&&!r.oldList.includes('Naya Gahak'),r.oldList);
+  assert.deepStrictEqual([r.modalClosed,r.home,r.min],[true,'tabHome',1]);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;

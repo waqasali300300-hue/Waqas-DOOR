@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a3a6a">
+<title>Order Status</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+  :root{--primary:#1a3a6a;--gold:#c8963e;--bg:#eef2f8;--card:#fff;--text:#1a2a3a;--muted:#6a7a8a;--border:#d4dce8;--green:#16a34a;}
+  @media (prefers-color-scheme: dark){:root{--bg:#0e1a2a;--card:#1a2a3a;--text:#dce4ee;--muted:#9aa8b8;--border:#2a3a4a;}}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:linear-gradient(135deg,#0f2547,var(--primary));color:#fff;padding:18px 16px;text-align:center;border-bottom:3px solid var(--gold);}
+  header h1{font-size:21px;}
+  header p{font-size:12px;opacity:.85;margin-top:4px;}
+  .wrap{max-width:560px;margin:auto;padding:14px 16px 30px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px;}
+  .muted{color:var(--muted);font-size:12px;}
+  .big{font-size:18px;font-weight:700;}
+  .steps{display:flex;flex-direction:column;gap:0;margin-top:6px;}
+  .step{display:flex;gap:10px;align-items:flex-start;position:relative;padding-bottom:14px;}
+  .step:not(:last-child)::before{content:"";position:absolute;left:13px;top:28px;bottom:0;width:2px;background:var(--border);}
+  .step.done:not(:last-child)::before{background:var(--green);}
+  .dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:var(--card);}
+  .step.done .dot{background:var(--green);border-color:var(--green);color:#fff;}
+  .step.now .dot{border-color:var(--gold);background:var(--gold);color:#fff;}
+  .step b{font-size:14px;}
+  .row{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px solid var(--border);}
+  .row:last-child{border-bottom:0;}
+  .due{color:#b45309;font-weight:700;}
+  .paid{color:var(--green);font-weight:700;}
+  .wa{display:block;text-align:center;padding:13px;border-radius:12px;background:#25d366;color:#fff;font-weight:700;text-decoration:none;font-size:15px;}
+  .msg{text-align:center;padding:40px 16px;color:var(--muted);font-size:14px;}
+  footer{text-align:center;font-size:11px;color:var(--muted);margin-top:10px;}
+</style>
+</head>
+<body>
+<header><h1 id="shop">Order Status</h1><p id="shopSub"></p></header>
+<div class="wrap" id="main"><div class="msg">⏳ Load ho raha hai…</div></div>
+<script>
+// Shows one customer's order, published by the shop under a random code.
+// Nothing else from the shop's data is readable here.
+const params=new URLSearchParams(location.hash.slice(1));
+const PROJECT=params.get('p'),TOKEN=params.get('t');
+const STEPS=[['pending','Order mil gaya','Order darj ho gaya'],['cutting','Cutting','Lakri kaati ja rahi hai'],['assembly','Assembly','Darwaza jora ja raha hai'],
+  ['polishing','Polish','Polish / finishing ho rahi hai'],['ready','Tayyar','Order tayyar hai — delivery ka intezar'],['delivered','Deliver ho gaya','Order aap tak pohanch gaya']];
+function val(v){
+  if(!v)return null;
+  if('stringValue' in v)return v.stringValue;
+  if('integerValue' in v)return Number(v.integerValue);
+  if('doubleValue' in v)return v.doubleValue;
+  if('booleanValue' in v)return v.booleanValue;
+  if('nullValue' in v)return null;
+  if('arrayValue' in v)return (v.arrayValue.values||[]).map(val);
+  if('mapValue' in v)return fields(v.mapValue.fields||{});
+  return null;
+}
+function fields(f){let o={};for(const k in f)o[k]=val(f[k]);return o;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function waPhone(p){p=String(p||'').replace(/[^0-9]/g,'');if(p.startsWith('0'))p='92'+p.slice(1);return p;}
+async function load(){
+  let main=document.getElementById('main');
+  if(!PROJECT||!/^[a-z0-9]{8,40}$/.test(TOKEN||'')){main.innerHTML='<div class="msg">⚠️ Link poora nahi — dukaan se dobara link mangwayein.</div>';return;}
+  try{
+    let r=await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(PROJECT)}/databases/(default)/documents/public/t_${TOKEN}`,{cache:'no-store'});
+    if(!r.ok)throw new Error(r.status===404?'Yeh order nahi mila':'Load nahi hua');
+    let d=fields((await r.json()).fields||{});
+    let cur=d.currency||'Rs.',money=n=>cur+Math.round(n||0).toLocaleString();
+    document.getElementById('shop').textContent=d.shop&&d.shop.name||'Order Status';
+    document.getElementById('shopSub').textContent=[d.shop&&d.shop.phone,d.shop&&d.shop.address].filter(Boolean).join(' · ');
+    document.title=(d.orderNo||'Order')+' — '+(d.shop&&d.shop.name||'');
+    let idx=Math.max(0,STEPS.findIndex(s=>s[0]===d.status));
+    let steps=STEPS.map((s,i)=>`<div class="step ${i<idx||d.status==='delivered'?'done':i===idx?'now':''}"><div class="dot">${i<idx||d.status==='delivered'?'✓':i+1}</div>
+      <div><b>${esc(s[1])}</b><div class="muted">${i===idx?esc(s[2]):''}</div></div></div>`).join('');
+    let wa=d.shop&&(d.shop.whatsapp||d.shop.phone);
+    main.innerHTML=`
+      <div class="card"><div class="muted">Order</div><div class="big">${esc(d.orderNo)}</div>
+        <div class="muted" style="margin-top:4px;">${esc(d.party)} · ${esc(d.date)}${d.deliveryDate?` · Delivery: <b>${esc(d.deliveryDate)}</b>`:''}</div></div>
+      <div class="card"><div class="muted" style="margin-bottom:6px;">Soorat-e-haal</div><div class="steps">${steps}</div></div>
+      <div class="card">
+        ${(d.doors||[]).map(x=>`<div class="row"><span>🚪 ${esc(x.size||'Darwaza')}</span><span>× ${esc(x.qty)}</span></div>`).join('')}
+        <div class="row"><span>Kul raqam</span><b>${money(d.total)}</b></div>
+        <div class="row"><span>Ada</span><span class="paid">${money(d.paid)}</span></div>
+        <div class="row"><span>Baqi</span><span class="${d.balance>0?'due':'paid'}">${money(d.balance)}</span></div>
+      </div>
+      ${wa?`<a class="wa" href="https://wa.me/${waPhone(wa)}?text=${encodeURIComponent('Assalam-o-Alaikum, order '+(d.orderNo||'')+' ke baare mein')}">💬 Dukaan se WhatsApp par baat karein</a>`:''}
+      <footer>Aakhri update: ${esc(String(d.updatedAt||'').slice(0,16).replace('T',' '))}</footer>`;
+  }catch(e){main.innerHTML=`<div class="msg">⚠️ ${esc(e.message||e)} — thori der baad dobara kholein.</div>`;}
+}
+load();
+</script>
+</body>
+</html>
