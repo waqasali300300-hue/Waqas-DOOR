@@ -30,11 +30,14 @@ const MOCK_DB=`
   window.__cloudData=()=>HKSync.unpack(__cloud.erp.hk_main_user);   // the cloud copy is stored compressed
   window.__mockDb=function(){
     const clone=x=>JSON.parse(JSON.stringify(x));
+    const col=c=>(__cloud[c]=__cloud[c]||{});
     const ref=(c,id)=>({_c:c,_id:id,
-      get:async()=>({exists:!!__cloud[c][id],data:()=>clone(__cloud[c][id])}),
-      set:async d=>{__cloud[c][id]=clone({...d,savedAt:1});},
+      get:async()=>({exists:!!col(c)[id],data:()=>clone(col(c)[id])}),
+      set:async d=>{col(c)[id]=clone({...d,savedAt:1});},
+      delete:async()=>{delete col(c)[id];},
       onSnapshot:()=>()=>{}});
-    return {collection:c=>({doc:id=>ref(c,id)}),
+    return {collection:c=>({doc:id=>ref(c,id),
+        get:async()=>({forEach:fn=>Object.entries(col(c)).forEach(([id,v])=>fn({id,data:()=>clone(v)}))})}),
       runTransaction:async fn=>{await fn({get:r=>r.get(),set:(r,d)=>{__cloud[r._c][r._id]=clone({...d,savedAt:1});}});}};
   };`;
 
@@ -736,6 +739,42 @@ test('new APK finds the shop cloud by itself; connected app shares only the publ
     return sent;
   });
   assert.deepStrictEqual(reset,['owner@gmail.com','hkw-doors']);
+});
+
+test('data safety: dated cloud copies, old ones tidied, view and restore an old copy',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'k',authDomain:'d',projectId:'hkw-doors',appId:'a'}));
+    db=__mockDb();cloudEnabled=true;
+    parties=[{id:1,name:'Aziz bhai'}];orders=[{id:5,orderNo:'ORD-1',partyId:1,date:'2026-01-02',orderTotal:50000,payments:[]}];saveAll();
+    // Old copies: 2 in an old month (first one kept for good), one recent.
+    const old=(id,kind)=>{__cloud.erp_backup_meta=__cloud.erp_backup_meta||{};__cloud.erp_backups=__cloud.erp_backups||{};
+      __cloud.erp_backup_meta[id]={id,day:id.slice(0,10),kind:kind||'daily',parties:1,orders:1,sale:1};__cloud.erp_backups[id]={z:'x'};};
+    old('2025-03-01');old('2025-03-09');old(new Date(Date.now()-5*86400000).toISOString().slice(0,10));
+    localStorage.removeItem('hk_cloud_bk_day');
+    await syncNow();await wait(300);
+    let today=new Date().toISOString().slice(0,10);
+    let ids=Object.keys(__cloud.erp_backup_meta).sort();
+    // Screen lists the copies.
+    await openDataSafety();await wait(100);
+    let screen=document.getElementById('hkSafetyModalB').innerText;
+    // Data changes, then today's copy is brought back.
+    orders=[];parties.push({id:2,name:'Naya'});saveAll();
+    await viewCloudBackup(today);await wait(50);
+    let view=document.getElementById('hkSafetyModalB').innerText;
+    restoreCloudBackup(today);await wait(50);customConfirmOk();await wait(400);
+    return {ids,today,screen,view,orders:orders.length,parties:parties.map(p=>p.name),
+      before:Object.values(__cloud.erp_backup_meta).filter(m=>m.kind==='before-restore').map(m=>[m.orders,m.parties])};
+  });
+  assert.ok(r.ids.includes(r.today),JSON.stringify(r.ids));
+  assert.ok(r.ids.includes('2025-03-01'),'first copy of an old month is kept');
+  assert.ok(!r.ids.includes('2025-03-09'),'other old daily copies are tidied');
+  assert.strictEqual(r.ids.length,3,JSON.stringify(r.ids));
+  assert.ok(r.screen.includes('Cloud (Firebase)')&&r.screen.includes(r.today),r.screen);
+  assert.ok(r.view.includes('ORD-1')&&r.view.includes('Aziz bhai'),r.view);
+  assert.strictEqual(r.orders,1);
+  assert.deepStrictEqual(r.parties,['Aziz bhai']);
+  assert.deepStrictEqual(r.before,[[0,2]]);
 });
 
 (async()=>{

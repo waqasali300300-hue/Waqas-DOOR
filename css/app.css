@@ -455,3 +455,11 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
 .hk-src-title{font-weight:700;font-size:13px;text-align:center;margin-bottom:4px;}
 .hk-src-box button{border:1px solid var(--border);background:var(--gray-50);color:var(--text);border-radius:12px;padding:12px;font-size:13px;font-weight:600;font-family:inherit;}
 .hk-src-box .hk-src-cancel{background:none;color:var(--gray-500);}
+
+/* Data ki Hifazat */
+.hk-safe-row{display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:12px;margin-bottom:6px;font-size:11px;}
+.hk-safe-row small{color:var(--gray-500);font-size:9.5px;}
+.hk-safe-row.warn{border-color:#f0c36d;background:rgba(240,195,109,.08);}
+.hk-safe-dot{font-size:14px;}
+.hk-safe-copy{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+.hk-safe-copy small{color:var(--gray-500);}
