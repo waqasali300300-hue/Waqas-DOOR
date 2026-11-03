@@ -4,7 +4,7 @@
 // away; libraries and icons come from the saved copy.
 // Change CACHE_VERSION whenever files are added to APP_SHELL.
 
-const CACHE_VERSION = 'v25';
+const CACHE_VERSION = 'v26';
 const CACHE_NAME = 'hk-wood-doors-' + CACHE_VERSION;
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = [
@@ -32,6 +32,7 @@ const APP_SHELL = [
   './js/shop.js',
   './js/safety.js',
   './js/extra3.js',
+  './js/extra4.js',
   './js/lang.js',
   './vendor/xlsx.mini.min.js',
   './vendor/firebase-app-compat.js',

@@ -119,6 +119,9 @@ function sendOrder(){
   let msg=`Assalam-o-Alaikum ${catalog.name||''},\nCatalog se order request:\n`+
     c.map(x=>`• ${x.it.size} × ${x.n}${doorPrice(x.it)?` (${money(doorPrice(x.it)*x.n)})`:''}`).join('\n')+
     (total?`\nAndaza kul: ${money(total)}`:'')+(name?`\nNaam: ${name}`:'')+(phone?`\nPhone: ${phone}`:'')+`\nMeharbani kar ke rate aur delivery confirm karein.`;
+  // A link for the shop: tapping it opens their app with this request ready as an estimate.
+  let code=btoa(unescape(encodeURIComponent(JSON.stringify({n:name,p:phone,i:c.map(x=>[x.it.size,x.n,x.it.rate])})))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  msg+=`\n\n(Dukaan ke liye — estimate banane ka link: ${location.href.split('#')[0].replace(/catalog\.html$/,'')}#est=${code})`;
   let to=String(catalog.whatsapp||catalog.phone||'').replace(/[^0-9]/g,'');if(to.startsWith('0'))to='92'+to.slice(1);
   window.open(`https://wa.me/${to}?text=${encodeURIComponent(msg)}`,'_blank');
 }

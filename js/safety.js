@@ -33,7 +33,7 @@
   async function writeCopy(id,kind){
     let data=getCloudSnapshot();
     let packed=await HKSync.pack(data);
-    let meta={id,day:id.slice(0,10),kind,savedAt:new Date().toISOString(),size:packed.z.length,...counts(data)};
+    let meta={id,day:/^\d{4}-\d{2}-\d{2}/.test(id)?id.slice(0,10):day(),kind,savedAt:new Date().toISOString(),size:packed.z.length,...counts(data)};
     await db.collection('erp_backups').doc(id).set({...packed,savedAt:meta.savedAt});
     await db.collection('erp_backup_meta').doc(id).set(meta);
     return meta;
@@ -54,7 +54,7 @@
       if(!months.has(mo)){months.add(mo);keep.add(m.id);}
     });
     for(const m of all){
-      if(m.day>=cut||keep.has(m.id))continue;
+      if(m.kind==='year'||m.day>=cut||keep.has(m.id))continue;
       try{await db.collection('erp_backups').doc(m.id).delete();await db.collection('erp_backup_meta').doc(m.id).delete();}catch(e){}
     }
   }
@@ -73,6 +73,7 @@
     }catch(e){console.warn('Cloud backup:',e);return null;}
     finally{running=false;}
   }
+  window.hkCloudCopy=(id,kind)=>writeCopy(id,kind);
   window.hkCloudBackupNow=async function(){
     if(!ready()){showToast('⚠️ Pehle cloud se jorein');return;}
     let m=await dailyCopy(true);
@@ -163,7 +164,7 @@
       let list=await listMeta();
       let el=document.getElementById('hkSafeList');if(!el)return;
       el.innerHTML=list.length?list.map(m=>`<div class="hk-safe-copy">
-          <span style="flex:1;min-width:0;"><b>${esc(m.day)}</b>${m.kind==='before-restore'?' <small>(wapas laane se pehle)</small>':''}<br>
+          <span style="flex:1;min-width:0;"><b>${m.kind==='year'?'📅 Saal '+esc(String(m.id).slice(5)):esc(m.day)}</b>${m.kind==='before-restore'?' <small>(wapas laane se pehle)</small>':m.kind==='year'?' <small>(hamesha ke liye)</small>':''}<br>
           <small>${m.parties} parties · ${m.orders} orders · ${fmtRs(m.sale)}</small></span>
           <button class="btn btn-outline btn-xs" onclick="viewCloudBackup('${esc(m.id)}')">👁 Dekhein</button></div>`).join('')
         :'Abhi koi copy nahi — "Abhi" dabayein ya kal tak khud ban jayegi.';
