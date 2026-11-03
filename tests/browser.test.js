@@ -930,6 +930,82 @@ test('stock count, design report, staff limits, year closing',async page=>{
   assert.deepStrictEqual([r.repHidden,r.bankHidden,r.tab,r.staffProfit,r.designBlocked,r.ownerSees],[true,true,'tabHome',false,true,true]);
 });
 
+test('cutting list, workshop board, rate change, personal loans',async page=>{
+  const r=await page.evaluate(async()=>{
+    woodTypes=[{id:1,name:'Kail',rate:5000,openingStock:0}];
+    parties=[{id:1,name:'Aziz bhai'}];
+    let t=new Date().toISOString().slice(0,10);
+    orders=[{id:5,orderNo:'ORD-1',partyId:1,date:t,deliveryDate:'2020-01-01',status:'pending',orderTotal:1,payments:[],
+      doors:[{size:'36x84',w:36,h:84,qty:2,thickness:1.5,woodId:1},{size:'Bina naap',qty:1,woodId:1}]}];
+    priceList=[{id:1,size:'Mughleazam',rate:950}];saveAll();
+    let cut=hkCutParts(orders[0].doors,{stile:4.5,rail:6,rails:3,panelT:0.75});
+    openCuttingList([5]);let cutText=document.getElementById('hkCutModalB').innerText;closeModal('hkCutModal');
+    openWorkshopBoard();
+    let cards=document.querySelectorAll('#hkBoard .hk-board-card').length,late=document.querySelectorAll('#hkBoard .hk-board-card.late').length;
+    boardNext(5);let status=orders[0].status,moved=document.querySelectorAll('#hkBoard .hk-board-col')[1].querySelectorAll('.hk-board-card').length;
+    closeWorkshopBoard();
+    openRateChange();document.getElementById('hkRcPct').value='10';rateChangePreview();applyRateChange();
+    await new Promise(r=>setTimeout(r,50));customConfirmOk();await new Promise(r=>setTimeout(r,120));
+    let rates=[priceList[0].rate,woodTypes[0].rate];
+    openLoans();document.getElementById('hkLoanName').value='Bhai jan';document.getElementById('hkLoanPhone').value='0300';addLoanPerson();
+    let L=personalLoans[0];
+    document.getElementById('hkLoanAmt').value='5000';addLoanEntry(L.id,'diya');
+    document.getElementById('hkLoanAmt').value='2000';addLoanEntry(L.id,'liya');
+    let bal=hkLoanBal(personalLoans[0]),cashBook=bankTransactions.length;
+    closeModal('hkLoanModal');
+    staffUsers=[{id:99,name:'Bilal',pin:'1'}];activeUserId=99;openLoans();
+    let staffSees=document.getElementById('hkLoanModal').classList.contains('open');activeUserId=null;
+    return {cut:cut.list.map(p=>[p.name,p.L,p.W,p.T,p.qty]),byWood:cut.byWood,skipped:cut.skipped,cutText,cards,late,status,moved,rates,bal,cashBook,staffSees};
+  });
+  assert.deepStrictEqual(r.cut,[['Khara (Stile)',84,4.5,1.5,4],['Aara (Rail)',27,6,1.5,6],['Panel',27,33,0.75,4]]);
+  assert.strictEqual(r.skipped,1);
+  assert.ok(r.cutText.includes('84 × 4.5 × 1.5')&&r.cutText.includes('naap nahi'),r.cutText);
+  assert.deepStrictEqual([r.cards,r.late,r.status,r.moved],[1,1,'cutting',1]);
+  assert.deepStrictEqual(r.rates,[1045,5000]);
+  assert.strictEqual(r.bal,3000);
+  assert.strictEqual(r.cashBook,0,'personal loans stay out of the cash book');
+  assert.strictEqual(r.staffSees,false);
+});
+
+test('live khata link and page; QR scan reads a code and opens the order',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    localStorage.setItem('ww_fb_cfg',JSON.stringify({apiKey:'k',authDomain:'d',projectId:'hkw-doors',appId:'a'}));
+    db=__mockDb();__cloud.public={};cloudEnabled=true;
+    parties=[{id:1,name:'Aziz bhai',phone:'0300',openingBalance:5000},{id:2,name:'Doosri party'}];
+    orders=[{id:5,orderNo:'ORD-1',partyId:1,date:'2026-11-01',orderTotal:20000,payments:[{amount:8000,date:'2026-11-02'}]},{id:6,orderNo:'ORD-9',partyId:2,date:'2026-11-01',orderTotal:7,payments:[]}];
+    saveAll();
+    let opened='';window.open=u=>{opened=u;};
+    openPartyLedger(1);let btn=!!document.querySelector('.hk-khata-btn');closeModal('partyLedgerModal');
+    await shareLiveKhata(1);
+    let key=Object.keys(__cloud.public).find(k=>k.startsWith('k_'));
+    let doc=__cloud.public[key];
+    // QR: make a code with the app's own QR library, then read it back.
+    let box=document.createElement('div');document.body.appendChild(box);
+    new QRCode(box,{text:'https://x.github.io/Waqas-DOOR/#order=5',width:256,height:256});
+    await wait(100);
+    let canvas=box.querySelector('canvas');
+    let read=await hkDecodeQRCanvas(canvas);
+    let action=hkHandleScan(read);
+    let detailOpen=document.getElementById('orderDetailModal').classList.contains('open');
+    return {btn,opened:decodeURIComponent(opened),key,token:parties[0].khataToken,doc,all:JSON.stringify(__cloud.public),read,action,detailOpen};
+  });
+  assert.ok(r.btn);
+  assert.ok(r.opened.includes('khata.html#p=hkw-doors&t='+r.token),r.opened);
+  assert.strictEqual(r.key,'k_'+r.token);
+  assert.strictEqual(r.doc.balance,17000);
+  assert.strictEqual(r.doc.entries.length,3);
+  assert.ok(!r.all.includes('Doosri party')&&!r.all.includes('ORD-9'));
+  assert.strictEqual(r.read,'https://x.github.io/Waqas-DOOR/#order=5');
+  assert.deepStrictEqual([r.action,r.detailOpen],['order',true]);
+  const fs=v=>v===null?{nullValue:null}:Array.isArray(v)?{arrayValue:{values:v.map(fs)}}:typeof v==='object'?{mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,fs(x)]))}}:typeof v==='number'?{doubleValue:v}:{stringValue:String(v)};
+  await page.context().route('https://firestore.googleapis.com/**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({fields:fs(r.doc).mapValue.fields})}));
+  await page.goto(page.url().replace(/index\.html.*$/,'khata.html#p=hkw-doors&t='+r.token));
+  await page.waitForSelector('table');
+  const text=await page.locator('#main').innerText();
+  assert.ok(text.includes('Aziz bhai')&&text.includes('17,000')&&text.includes('ORD-1'),text);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
