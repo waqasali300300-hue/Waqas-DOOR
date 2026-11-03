@@ -48,6 +48,7 @@ const DASHBOARD_SECTIONS = [
     {icon:'🧮',label:'Calculator',action:'openCalculator'},
     {icon:'🔔',label:'Reminders',action:'openReminderCenter'},
     {icon:'🪪',label:'Business Card',action:'openBusinessCardModal'},
+    {icon:'📺',label:'Free TV',action:'openTv'},
     {icon:'♻️',label:'Recycle',tab:'tabRecycle'},
     {icon:'⚙️',label:'Settings',action:'openSettingsModal'},
   ]}
@@ -873,6 +874,8 @@ function renderDrawerFooter(){
 // ──────── CALCULATOR ────────────────────────────────
 // ════════════════════════════════════════════════════
 let calcStr='',calcResult='';
+// Free TV and movies page (tv/index.html), kept separate from the shop data.
+function openTv(){location.href='tv/index.html';}
 function openCalculator(){openModal('calcModal');calcClear();}
 function calcClear(){calcStr='';calcResult='';document.getElementById('calcDisplay').textContent='0';document.getElementById('calcExpr').textContent='';}
 function calcPress(v){
