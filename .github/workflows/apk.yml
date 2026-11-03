@@ -36,7 +36,7 @@ jobs:
       - name: Copy app files into the APK folder
         run: |
           mkdir -p android-app/www
-          cp -r index.html catalog.html status.html manifest.json css js vendor icon-*.png android-app/www/
+          cp -r index.html catalog.html status.html khata.html manifest.json css js vendor icon-*.png android-app/www/
           echo "window.HK_APK_BUILD=${{ github.run_number }};" > android-app/www/js/apk-build.js
           sed -i 's#<script src="js/native.js"></script>#<script src="js/apk-build.js"></script>\n<script src="js/native.js"></script>#' android-app/www/index.html
           grep -q 'js/apk-build.js' android-app/www/index.html
@@ -49,6 +49,9 @@ jobs:
           cp -r res/* android/app/src/main/res/
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.USE_BIOMETRIC" />#' android/app/src/main/AndroidManifest.xml
           grep -q USE_BIOMETRIC android/app/src/main/AndroidManifest.xml
+          # Camera for the in-app QR scan (asked the first time it is used).
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />#' android/app/src/main/AndroidManifest.xml
+          grep -q permission.CAMERA android/app/src/main/AndroidManifest.xml
           # The screen shrinks when the keyboard opens, so the field being typed in stays visible.
           sed -i 's#android:launchMode="singleTask"#android:launchMode="singleTask"\n            android:windowSoftInputMode="adjustResize"#' android/app/src/main/AndroidManifest.xml
           grep -q adjustResize android/app/src/main/AndroidManifest.xml
