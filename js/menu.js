@@ -29,7 +29,7 @@
     openRateChange:'Rate Badlein',openRateListPdf:'Rate List PDF',openCatalog:'Online Catalog',openRawMaterialCalcModal:'Material Calc',
     openBusinessCardModal:'Business Card',openReminderCenter:'Payment Reminders',openUserSwitcher:'Staff / Users',openActivityLog:'Activity',
     openApkInfo:'Android App',openDataSafety:'Data ki Hifazat',openFbSetup:'Cloud Setup',openAutoSettings:'Auto System',
-    installApp:'App Install',openSettingsModal:'Settings',toggleDarkMode:'Dark / Light'};
+    installApp:'App Install',openTv:'Free TV',openSettingsModal:'Settings',toggleDarkMode:'Dark / Light'};
   const USE_KEY='hk_menu_use',FOLD_KEY='hk_menu_folded';
   function store(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k)||'null');localStorage.setItem(k,JSON.stringify(v));}catch(e){return null;}}
   function keyOf(b){
