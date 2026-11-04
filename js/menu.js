@@ -9,7 +9,7 @@
 // working, and items added later are sorted in too.
 (function(){
   const GROUPS=[
-    ['kaam','🛒','Orders aur Kaam',['tabHome','tabOrders','openQuotationList','tabProduction','openWorkshopBoard','openCuttingPicker','openMorning','openDayClose']],
+    ['kaam','🛒','Orders aur Kaam',['tabHome','tabOrders','openQuickPrice','openAlbum','openQuotationList','tabProduction','openWorkshopBoard','openCuttingPicker','openMorning','openDayClose']],
     ['gahak','📒','Gahak aur Wasooli',['tabKhata','tabParties','openBulkReminders','openReminderCenter','openOldCustomers','openStatements','openCatalog','openImport']],
     ['paisa','💰','Paisa',['tabBankBook','tabExpenses','openBills','openChequeListModal','openLoans','setSalesTarget']],
     ['karigar','👷','Karigar',['tabLabour','openKarigarPay','openKarigarList','openAttendanceModal','openKarigarReport','openTools']],
@@ -18,7 +18,7 @@
     ['app','⚙️','Settings aur Madad',[]] // everything else
   ];
   const SHORT={tabHome:'Home',openMorning:'Subah ka Khaka',openDayClose:'Aaj ka Hisaab',openKarigarPay:'Karigar Payment',openWoodBuyList:'Lakri List',
-    tabOrders:'Orders',openQuotationList:'Estimates',tabProduction:'Production',openWorkshopBoard:'Kaam ka Board',openCuttingPicker:'Cutting List',
+    tabOrders:'Orders',openQuickPrice:'Fauri Qeemat',openAlbum:'Design Album',openQuotationList:'Estimates',tabProduction:'Production',openWorkshopBoard:'Kaam ka Board',openCuttingPicker:'Cutting List',
     tabLabour:'Labour',openKarigarReport:'Karigar Report',tabKhata:'Party Khata',openBulkReminders:'Wasooli Yaad Dahani',tabParties:'Parties',
     openOldCustomers:'Purane Gahak',openImport:'Excel se Parties',tabInventory:'Stock',tabPurchases:'Khareed',tabSuppliers:'Suppliers',
     tabExpenses:'Kharcha',openBills:'Mahana Bill',tabBankBook:'Bank / Cash',openChequeListModal:'Cheques',openLoans:'Zaati Qarz',
