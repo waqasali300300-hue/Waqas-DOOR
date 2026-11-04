@@ -1053,6 +1053,39 @@ test('new main menu: groups, quick actions, most used, search, staff; phone remi
   assert.ok(r.plan.every(p=>p[2]===9));
 });
 
+test('design album and instant price: price, WhatsApp text, estimate',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    priceList=[{id:1,size:'Mughleazam',rate:950,photo:'data:image/gif;base64,R0lGODlhAQABAAAAACw='},{id:2,size:'Rose Design',rate:800}];
+    parties=[];quotations=[];saveAll();
+    openAlbum();
+    let first=document.querySelector('.hk-album-name').innerText,hasImg=!!document.querySelector('.hk-album-stage img');
+    hkAlbumGo(1);let second=document.querySelector('.hk-album-name').innerText;
+    let rateShown=!!document.querySelector('.hk-album-rate');hkAlbumToggleRate();let rateHidden=!document.querySelector('.hk-album-rate');hkAlbumToggleRate();
+    document.querySelector('.hk-album-price').click();await wait(50);
+    let albumGone=!document.getElementById('hkAlbum'),line0=JSON.parse(JSON.stringify(hkQuickLines()[0]));
+    hkQpSet(0,'size','45x80');hkQpSet(0,'qty','2');
+    hkQpAdd();hkQpSet(1,'design','Mughleazam');hkQpSet(1,'size','36x84');
+    let total=document.querySelector('.hk-qp-total b').innerText;
+    document.getElementById('hkQpName').value='Aziz';document.getElementById('hkQpPhone').value='0300 1234567';
+    let opened='';window.open=u=>{opened=u;};hkQpSend();
+    hkQpEstimate();await wait(100);
+    let q=quotations[quotations.length-1];
+    return {first,hasImg,second,rateShown,rateHidden,albumGone,line0,total,opened:decodeURIComponent(opened),
+      q:q&&[q.doors.map(d=>[d.size,d.qty,Math.round(d.doorAmount)]),Math.round(q.quoteTotal)],party:parties.map(p=>[p.name,p.phone]),
+      editing:document.getElementById('quotationModal')?.classList.contains('open')};
+  });
+  assert.deepStrictEqual([r.first,r.hasImg,r.second],['Mughleazam',true,'Rose Design']);
+  assert.deepStrictEqual([r.rateShown,r.rateHidden,r.albumGone],[true,true,true]);
+  assert.deepStrictEqual([r.line0.design,r.line0.rate],['Rose Design',800]);
+  // 45x80 = 25 sq.ft × 2 × 800 = 40,000 ; 36x84 = 21 sq.ft × 950 = 19,950
+  assert.ok(r.total.includes('59,950'),r.total);
+  assert.ok(r.opened.startsWith('https://wa.me/923001234567')&&r.opened.includes('Kul: Rs.59,950'),r.opened);
+  assert.deepStrictEqual(r.q,[[['45x80 Rose Design',2,40000],['36x84 Mughleazam',1,19950]],59950]);
+  assert.deepStrictEqual(r.party,[['Aziz','0300 1234567']]);
+  assert.ok(r.editing);
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
