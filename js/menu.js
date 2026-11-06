@@ -140,7 +140,7 @@
     let on=typeof cloudEnabled!=='undefined'&&cloudEnabled;
     let cfg=typeof getFirebaseCfg==='function'&&getFirebaseCfg();
     head.innerHTML=`<div class="hk-menu-head">
-        <div class="hk-menu-logo">🚪</div>
+        <div class="hk-menu-logo"><img src="logo.png" alt=""></div>
         <div style="min-width:0;flex:1;"><div class="hk-menu-name">${esc(name)}</div>
           <div class="hk-menu-sub">${new Date().toLocaleDateString('en-PK',{weekday:'short',day:'numeric',month:'short'})}
             <span class="hk-menu-cloud ${on?'ok':cfg?'warn':'bad'}">${on?'☁️ Cloud juda':cfg?'⏳ Offline':'⚠️ Cloud nahi'}</span></div></div>
