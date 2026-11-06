@@ -192,7 +192,7 @@
 
   // Tell the owner when a newer APK is out.
   async function checkUpdate(){
-    let mine=Number(window.HK_APK_BUILD)||0;if(!mine)return;
+    let mine=Number(window.HK_APK_BUILD)||0;if(!mine||window.HK_STORE==='play')return; // Play updates its own copy
     try{
       let r=await fetch(RELEASE_API,{cache:'no-store'});if(!r.ok)return;
       let m=/build:(\d+)/.exec((await r.json()).body||'');

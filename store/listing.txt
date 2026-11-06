@@ -1,0 +1,27 @@
+=== Google Play Store — listing text (copy-paste) ===
+
+App name (max 30):
+HK Doors — Wood Door ERP
+
+Short description (max 80):
+Orders, khata, labour, stock aur WhatsApp bill — darwazon ka poora hisaab.
+
+Full description (max 4000):
+HK Doors is a complete business app for wooden door makers and shops.
+
+★ Orders & estimates — size, design and quantity; rate, wood (cft), labour and profit are worked out automatically.
+★ Party khata — every order and payment in one ledger, old khata entries, PDF statements and a live khata link for the customer.
+★ Labour — karigar accounts, advances, weekly/monthly reports and one-tap payment.
+★ Stock — wood stock, hardware, purchases, suppliers and stock counting.
+★ WhatsApp — bills, receipts and payment reminders sent as a neat picture with your logo.
+★ Design album & instant price — show designs to the customer and give a price on the spot.
+★ Production board — cutting list, workshop board and delivery-date alerts.
+★ Reports — monthly profit, design report and the full year's account.
+★ Safe data — works offline, cloud sync between phone and laptop, daily backups, fingerprint and PIN lock, staff with limited access.
+★ Urdu and Roman Urdu.
+
+Darwaze banane walon aur dukanon ke liye mukammal app: orders, khata, mazdoori, lakri ka stock, WhatsApp bill aur reports — sab ek jagah.
+
+Category: Business
+Contains ads: No
+Privacy policy: https://waqasali300300-hue.github.io/Waqas-DOOR/privacy.html
