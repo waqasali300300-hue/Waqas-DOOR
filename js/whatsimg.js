@@ -107,15 +107,43 @@
     return origWA?origWA.apply(this,arguments):window.open(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`,'_blank');
   };
 
-  // ── Payment reminder: the khata as a picture ──
+  // ── Payment reminders: the khata as a picture ──
+  function khataPicture(p){
+    let bal=getPartyBalance(p);
+    let rows=buildPartyLedgerEntries(p).slice(-8).map(e=>[`${esc(e.date)} · ${esc(e.type)}${e.ref?' '+esc(e.ref):''}`,e.debit?`<span style="color:#b91c1c;">+${fmtRs(e.debit)}</span>`:`<span style="color:#15803d;">−${fmtRs(e.credit)}</span>`]);
+    let html=card('🔔 Yaad dahani — '+esc(p.name),rows.length?rows:[['Koi len-den nahi','']],['Kul baqaya',fmtRs(bal)],'Meharbani kar ke baqaya jald ada kar dein. Shukriya!');
+    return hkShareImage(html,'Yaad_Dahani_'+p.name,p.phone,`Assalam-o-Alaikum ${p.name}, ${businessProfile.name||''} se yaad dahani — aap ki taraf ${fmtRs(bal)} baqi hai. Meharbani kar ke jald ada kar dein. Shukriya!`);
+  }
   window.sendWhatsAppReminder=function(pid){
     let p=getPartyById(pid);
     if(!p){showToast('⚠️ Party nahi mili');return;}
-    let bal=getPartyBalance(p);
-    let rows=buildPartyLedgerEntries(p).slice(-8).map(e=>[`${esc(e.date)} · ${esc(e.type)}${e.ref?' '+esc(e.ref):''}`,e.debit?`<span style="color:#b91c1c;">+${fmtRs(e.debit)}</span>`:`<span style="color:#15803d;">−${fmtRs(e.credit)}</span>`]);
-    let html=card('📒 Khata — '+esc(p.name),rows.length?rows:[['Koi len-den nahi','']],['Kul baqaya',fmtRs(bal)],'Meharbani kar ke baqaya jald ada kar dein. Shukriya!');
-    return hkShareImage(html,'Khata_'+p.name,p.phone,`Assalam-o-Alaikum ${p.name}, ${businessProfile.name||''} se — aap ki taraf ${fmtRs(bal)} baqi hai. Shukriya.`);
+    return khataPicture(p);
   };
+  // "Sab ko yaad dahani" list: each party gets its khata picture.
+  if(window.sendReminder){
+    window.sendReminder=async function(id){
+      let p=getPartyById(id);if(!p||!p.phone)return;
+      await khataPicture(p);
+      p.lastReminder=new Date().toISOString().slice(0,10);saveAll();
+      if(window.openBulkReminders)setTimeout(openBulkReminders,300);
+    };
+    window.sendNextReminder=function(){
+      let t=new Date().toISOString().slice(0,10);
+      let next=parties.map(p=>({p,b:getPartyBalance(p)})).filter(x=>x.b>0&&x.p.phone&&x.p.lastReminder!==t).sort((a,b)=>b.b-a.b)[0];
+      if(!next){showToast('✅ Aaj sab ko bhej diya');return;}
+      return sendReminder(next.p.id);
+    };
+  }
+  // Personal loan reminder.
+  if(window.loanReminder){
+    window.loanReminder=function(id){
+      let l=(typeof personalLoans!=='undefined'?personalLoans:[]).find(x=>x.id===id);if(!l)return;
+      let bal=window.hkLoanBal?hkLoanBal(l):0;
+      let rows=(l.entries||[]).slice(-8).map(e=>[`${esc(e.date)} · ${e.dir==='diya'?'Diye':'Wapas mile'}${e.note?' · '+esc(e.note):''}`,`${e.dir==='diya'?'+':'−'}${fmtRs(e.amount)}`]);
+      let html=card('🔔 Yaad dahani — '+esc(l.name),rows.length?rows:[['—','']],['Baqi',fmtRs(bal)],'Jab suhoolat ho wapas kar dein. Shukriya!');
+      return hkShareImage(html,'Yaad_Dahani_'+l.name,l.phone,`Assalam-o-Alaikum ${l.name}, yaad dahani: aap ki taraf ${fmtRs(bal)} baqi hain. Jab suhoolat ho wapas kar dein. Shukriya!`);
+    };
+  }
 
   // ── Monthly statement ──
   let origStmt=window.sendStatementWhatsApp;
