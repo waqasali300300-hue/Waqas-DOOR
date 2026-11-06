@@ -90,7 +90,7 @@
     modal('hkBulkRemModal','📣 Sab ko yaad dahani',list.length?`
       <div style="font-size:12px;margin-bottom:6px;">${list.length} parties · kul baqaya <b>${fmtRs(total)}</b></div>
       <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="sendNextReminder()">💬 Agle ko bhejein ›</button>
-      <p style="font-size:9.5px;color:var(--gray-500);margin-bottom:6px;">Har dabane par WhatsApp khulega — Send dabayein, wapas aa kar agla.</p>${rows}`
+      <p style="font-size:9.5px;color:var(--gray-500);margin-bottom:6px;">Har dabane par party ke khate ki tasveer banegi — WhatsApp chunein, party chunein aur Send dabayein, phir wapas aa kar agla.</p>${rows}`
       :'<div class="hm-empty">✅ Kisi party ka baqaya nahi</div>',true);
   };
   window.sendReminder=function(id){

@@ -450,8 +450,8 @@ test('udhaar limit warning, reminders, order summary, karigar report, import, vo
     customConfirmOk();await wait(120);closeModal('paymentReceiptModal');
     out.saved=orders.length;
     let opened=[];window.open=u=>{opened.push(u);return null;};
-    sendNextReminder();out.reminder=opened[0]&&opened[0].includes('wa.me/923001234567');
-    sendOrderSummary(orders[0].id);out.summary=decodeURIComponent(opened[1]||'').includes(orders[0].orderNo);
+    await sendNextReminder();out.reminder=opened[0]&&opened[0].includes('wa.me/923001234567');
+    await sendOrderSummary(orders[0].id);out.summary=decodeURIComponent(opened[1]||'').includes(orders[0].orderNo);
     karigars=[{id:7,name:'Rafiq'}];labours=[{id:30,karigarId:7,orderId:orders[0].id,totalCost:3000,paid:1000,date:new Date().toISOString().slice(0,10)}];
     openKarigarReport();out.report=document.getElementById('hkKarRepModalB').innerText.includes('Dena hai Rs.2,000');closeModal('hkKarRepModal');
     out.import=importPartiesFromRows([{Naam:'Bilal Wood','Purana Baqaya':'25,000'},{Naam:'Ali Traders'}]);
@@ -1068,7 +1068,7 @@ test('design album and instant price: price, WhatsApp text, estimate',async page
     hkQpAdd();hkQpSet(1,'design','Mughleazam');hkQpSet(1,'size','36x84');
     let total=document.querySelector('.hk-qp-total b').innerText;
     document.getElementById('hkQpName').value='Aziz';document.getElementById('hkQpPhone').value='0300 1234567';
-    let opened='';window.open=u=>{opened=u;};hkQpSend();
+    let opened='';window.open=u=>{opened=u;};await hkQpSend();
     hkQpEstimate();await wait(100);
     let q=quotations[quotations.length-1];
     return {first,hasImg,second,rateShown,rateHidden,albumGone,line0,total,opened:decodeURIComponent(opened),
@@ -1080,10 +1080,56 @@ test('design album and instant price: price, WhatsApp text, estimate',async page
   assert.deepStrictEqual([r.line0.design,r.line0.rate],['Rose Design',800]);
   // 45x80 = 25 sq.ft × 2 × 800 = 40,000 ; 36x84 = 21 sq.ft × 950 = 19,950
   assert.ok(r.total.includes('59,950'),r.total);
-  assert.ok(r.opened.startsWith('https://wa.me/923001234567')&&r.opened.includes('Kul: Rs.59,950'),r.opened);
+  assert.ok(r.opened.startsWith('https://wa.me/923001234567')&&r.opened.includes('Kul Rs.59,950'),r.opened);
   assert.deepStrictEqual(r.q,[[['45x80 Rose Design',2,40000],['36x84 Mughleazam',1,19950]],59950]);
   assert.deepStrictEqual(r.party,[['Aziz','0300 1234567']]);
   assert.ok(r.editing);
+});
+
+test('old khata entries count everywhere; bills go to WhatsApp as a picture',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Aziz bhai',phone:'0300 1234567',openingBalance:5000}];
+    orders=[{id:5,orderNo:'ORD-7',partyId:1,date:'2026-11-01',orderTotal:20000,payments:[{amount:8000,date:'2026-11-02'}],doors:[{size:'45x80',qty:1,doorAmount:20000}]}];
+    saveAll();
+    let before=getPartyBalance(parties[0]);
+    openOldKhata(1);
+    document.getElementById('hkOkDate').value='2025-03-01';document.getElementById('hkOkAmt').value='10000';document.getElementById('hkOkNote').value='bill 45';addOldKhataEntry(1,'maal');
+    document.getElementById('hkOkDate').value='2025-04-01';document.getElementById('hkOkAmt').value='3000';addOldKhataEntry(1,'paise');
+    let after=getPartyBalance(parties[0]);
+    let led=buildPartyLedgerEntries(parties[0]).map(e=>[e.type.slice(0,12),e.balance]);
+    closeModal('hkOldKhataModal');
+    openPartyModal(1);let hint=!!document.getElementById('hkOldKhataHint');closeModal('partyModal');
+    // Sharing: capture what goes to the share sheet.
+    let shared=[];
+    navigator.canShare=()=>true;navigator.share=async d=>{shared.push({name:d.files[0].name,type:d.files[0].type,size:d.files[0].size,text:d.text});};
+    await sendOrderSummary(5);
+    window._hkReceipt={phone:'0300',msg:'Assalam-o-Alaikum Aziz bhai,\nHK — aap ki payment Rs.8,000 wasool ho gayi (ORD-7). Shukriya!\nBaqaya: Rs.24,000'};
+    await openWA('0300',window._hkReceipt.msg);
+    await sendWhatsAppReminder(1);
+    await sendReminder(1);
+    let marked=parties[0].lastReminder===new Date().toISOString().slice(0,10);
+    personalLoans=[{id:70,name:'Bhai jan',phone:'0301',entries:[{id:1,dir:'diya',amount:5000,date:'2026-10-01'}]}];
+    await loanReminder(70);
+    // No file sharing (laptop): picture saved + WhatsApp text opened.
+    navigator.canShare=()=>false;let opened='';window.open=u=>{opened=u;};
+    let saved=await sendWhatsAppReminder(1);
+    return {before,after,led,hint,shared,saved,marked,opened:decodeURIComponent(opened)};
+  });
+  assert.strictEqual(r.before,17000);
+  assert.strictEqual(r.after,24000);
+  assert.ok(r.led.some(x=>x[0]==='Purana khata'),JSON.stringify(r.led));
+  assert.strictEqual(r.led[r.led.length-1][1],24000);
+  assert.ok(r.hint);
+  assert.strictEqual(r.shared.length,5,JSON.stringify(r.shared));
+  assert.ok(r.shared[3].name.startsWith('Yaad_Dahani_Aziz')&&r.marked,JSON.stringify(r.shared[3]));
+  assert.ok(r.shared[4].name.startsWith('Yaad_Dahani_Bhai')&&r.shared[4].text.includes('5,000'),JSON.stringify(r.shared[4]));
+  assert.ok(r.shared.every(s=>s.type==='image/png'&&s.size>5000),JSON.stringify(r.shared));
+  assert.ok(r.shared[0].name.startsWith('Bill_ORD-7')&&r.shared[0].text.includes('ORD-7'),JSON.stringify(r.shared[0]));
+  assert.ok(r.shared[1].name.startsWith('Rasid_'),r.shared[1].name);
+  assert.ok(r.shared[2].name.startsWith('Yaad_Dahani_')&&r.shared[2].text.includes('24,000'),JSON.stringify(r.shared[2]));
+  assert.strictEqual(r.saved,'saved');
+  assert.ok(r.opened.startsWith('https://wa.me/923001234567'),r.opened);
 });
 
 (async()=>{
