@@ -36,7 +36,7 @@ jobs:
       - name: Copy app files into the APK folder
         run: |
           mkdir -p android-app/www
-          cp -r index.html catalog.html status.html khata.html manifest.json logo.png css js vendor icon-*.png android-app/www/
+          cp -r index.html catalog.html status.html khata.html privacy.html manifest.json logo.png css js vendor icon-*.png android-app/www/
           echo "window.HK_APK_BUILD=${{ github.run_number }};" > android-app/www/js/apk-build.js
           sed -i 's#<script src="js/native.js"></script>#<script src="js/apk-build.js"></script>\n<script src="js/native.js"></script>#' android-app/www/index.html
           grep -q 'js/apk-build.js' android-app/www/index.html
@@ -83,14 +83,28 @@ jobs:
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT/zipalign" -f -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
           "$BT/apksigner" sign --key "$RUNNER_TEMP/key/key.pk8" --cert "$RUNNER_TEMP/key/cert.der" --out ../HK-Doors.apk aligned.apk
-          rm -rf "$RUNNER_TEMP/key"
           "$BT/apksigner" verify --print-certs ../HK-Doors.apk
           ls -la ../HK-Doors.apk
+          # Google Play build (AAB): same app, marked as the Play copy (Play updates it,
+          # so it shows no "new APK" note), signed with the same key as the upload key.
+          echo "window.HK_APK_BUILD=${{ github.run_number }};window.HK_STORE='play';" > android/app/src/main/assets/public/js/apk-build.js
+          (cd android && ./gradlew bundleRelease --no-daemon --stacktrace)
+          K="$RUNNER_TEMP/key"
+          openssl pkcs8 -inform DER -nocrypt -in "$K/key.pk8" -out "$K/key.pem"
+          openssl x509 -inform DER -in "$K/cert.der" -out "$K/cert.pem"
+          openssl pkcs12 -export -inkey "$K/key.pem" -in "$K/cert.pem" -name hkdoors -out "$K/upload.p12" -passout env:APK_SIGN_PASSWORD
+          jarsigner -keystore "$K/upload.p12" -storetype PKCS12 -storepass:env APK_SIGN_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 \
+            -signedjar ../HK-Doors-PlayStore.aab android/app/build/outputs/bundle/release/app-release.aab hkdoors
+          rm -rf "$K"
+          jarsigner -verify ../HK-Doors-PlayStore.aab | tail -1
+          ls -la ../HK-Doors-PlayStore.aab
 
       - uses: actions/upload-artifact@v4
         with:
           name: HK-Doors-apk
-          path: HK-Doors.apk
+          path: |
+            HK-Doors.apk
+            HK-Doors-PlayStore.aab
 
       - name: Publish on the apk-latest release
         if: github.event_name != 'pull_request'
@@ -98,7 +112,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete apk-latest --yes --cleanup-tag || true
-          gh release create apk-latest HK-Doors.apk \
+          gh release create apk-latest HK-Doors.apk HK-Doors-PlayStore.aab \
             --target "${{ github.sha }}" \
             --title "HK Doors Android App (version 1.${{ github.run_number }})" \
-            --notes "Phone mein HK-Doors.apk download kar ke install karein. build:${{ github.run_number }}"
+            --notes "Phone mein HK-Doors.apk download kar ke install karein. Google Play ke liye HK-Doors-PlayStore.aab. build:${{ github.run_number }}"
