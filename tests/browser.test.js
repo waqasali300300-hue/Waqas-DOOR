@@ -1132,6 +1132,47 @@ test('old khata entries count everywhere; bills go to WhatsApp as a picture',asy
   assert.ok(r.opened.startsWith('https://wa.me/923001234567'),r.opened);
 });
 
+test('auto system 2: wood and karigar by design, delivery date, wood warning, loose labour handed over',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    woodTypes=[{id:1,name:'Kail',rate:5000,openingStock:0},{id:2,name:'Deodar',rate:9000,openingStock:0}];
+    karigars=[{id:7,name:'Rafiq'},{id:8,name:'Akram'}];
+    doorDesigns=['Mughleazam','Rose Design'];
+    parties=[{id:1,name:'Aziz bhai'}];orders=[];
+    labours=[{id:30,labourNo:'LAB-1',totalCost:1000,date:'2026-10-01'}];
+    let a=hkAutoCfg();a.labourRate=60;saveAll();
+    // Settings screen: Mughleazam → Deodar + Akram, 15 days.
+    openAutoSettings();
+    document.getElementById('au2Wood_0').value='2';document.getElementById('au2Kar_0').value='8';
+    document.getElementById('au2Days').value='15';
+    document.getElementById('auKarigar').value='7';
+    saveAutoSettings();await wait(400);
+    let offer=document.getElementById('confirmModalMsg').textContent;customConfirmOk();await wait(150);
+    let loose=labours[0].karigarId;
+    // New order: a Mughleazam door.
+    openOrderModal();await wait(50);
+    document.getElementById('orderPartyId').value='1';
+    document.getElementById('orderDate').value='2026-11-06';
+    addDoorFromSize('45x80');
+    let i=currentOrderDoors.length-1;
+    document.getElementById('doorSize_'+i).value='45x80 Mughleazam';updateDoor(i);
+    let woodAuto=currentOrderDoors[i].woodId;
+    document.getElementById('orderKarigarId').value='';
+    let toasts=[];let st=window.showToast;window.showToast=m=>{toasts.push(m);st(m);};
+    saveOrder();await wait(1200);closeModal('paymentReceiptModal');
+    let o=orders[orders.length-1],lab=labours.find(l=>l.orderId===o.id);
+    return {offer,loose,woodAuto,delivery:o.deliveryDate,karigar:o.karigarId,labKarigar:lab&&lab.karigarId,labCost:lab&&lab.totalCost,
+      warn:toasts.some(t=>t.includes('Lakri kam')&&t.includes('Deodar'))};
+  });
+  assert.ok(r.offer.includes('1 labour')&&r.offer.includes('Rafiq'),r.offer);
+  assert.strictEqual(r.loose,7);
+  assert.strictEqual(r.woodAuto,2,'Mughleazam gets Deodar');
+  assert.strictEqual(r.delivery,'2026-11-21');
+  assert.deepStrictEqual([r.karigar,r.labKarigar],[8,8]);
+  assert.strictEqual(r.labCost,1500,'25 sq.ft × 60');
+  assert.ok(r.warn,'wood shortage warned');
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;

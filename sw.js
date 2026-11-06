@@ -4,7 +4,7 @@
 // away; libraries and icons come from the saved copy.
 // Change CACHE_VERSION whenever files are added to APP_SHELL.
 
-const CACHE_VERSION = 'v31';
+const CACHE_VERSION = 'v32';
 const CACHE_NAME = 'hk-wood-doors-' + CACHE_VERSION;
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = [
@@ -37,6 +37,7 @@ const APP_SHELL = [
   './js/showroom.js',
   './js/oldkhata.js',
   './js/whatsimg.js',
+  './js/auto2.js',
   './js/notify.js',
   './js/menu.js',
   './js/lang.js',
