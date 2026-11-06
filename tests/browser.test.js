@@ -1173,6 +1173,59 @@ test('auto system 2: wood and karigar by design, delivery date, wood warning, lo
   assert.ok(r.warn,'wood shortage warned');
 });
 
+test('voice commands: names in Urdu or Roman letters, every kind of command opens the right thing',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Aziz bhai',phone:'0300'},{id:2,name:'Zulfiqar Traders',phone:'0301'},{id:3,name:'Ahmed Builders'}];
+    karigars=[{id:7,name:'Rafiq'},{id:8,name:'Akram'}];
+    priceList=[{id:1,size:'Mughleazam',rate:950},{id:2,size:'Rose Design',rate:800}];
+    orders=[{id:5,orderNo:'ORD-21',partyId:1,date:'2026-11-01',orderTotal:1,payments:[]}];saveAll();
+    const U=s=>{let v=hkUnderstand(s);return [v.kind,(v.party||v.karigar||v.order||{}).name||(v.order&&v.order.orderNo)||v.word||'',v.amount||v.size||''];};
+    let out={
+      ledgerUr:U('عزیز بھائی کا کھاتہ'),ledgerRo:U('Aziz ka khata'),zulf:U('ذوالفقار کا حساب'),
+      pay:U('payment Aziz 20 hazar'),payUr:U('احمد سے پیمنٹ ۵۰۰۰'),exp:U('kharcha bijli 5000'),
+      kar:U('رفیق کو 3000 مزدوری دو'),newOrder:U('naya order Zulfiqar'),
+      price:U('45x80 Mughleazam 4 ki qeemat'),order:U('order 21'),rem:U('Aziz ko yaad dahani'),
+      day:U('aaj ka hisaab'),stock:U('اسٹاک'),wood:U('lakri'),kr:U('karigar report'),back:U('backup'),
+      none:U('kuch bhi nahi')
+    };
+    // Acting: ledger opens, payment form filled, price filled, search fallback.
+    applyVoiceText('عزیز کا کھاتہ');await wait(150);
+    out.ledgerOpen=document.getElementById('partyLedgerModal').classList.contains('open');
+    applyVoiceText('payment Ahmed 7000');await wait(250);
+    out.payAmt=document.getElementById('payAmount')?.value;
+    applyVoiceText('Rose Design 36x84 3 ki qeemat');await wait(200);
+    out.qp=JSON.parse(JSON.stringify(hkQuickLines()[0]));
+    applyVoiceText('blah',['Aziz ka khata']);await wait(150);
+    out.alt=document.getElementById('partyLedgerModal').classList.contains('open');
+    applyVoiceText('kuch bhi nahi');await wait(200);
+    out.search=document.getElementById('globalSearchInput')?.value;
+    return out;
+  });
+  assert.deepStrictEqual(r.ledgerUr,['ledger','Aziz bhai','']);
+  assert.deepStrictEqual(r.ledgerRo,['ledger','Aziz bhai','']);
+  assert.deepStrictEqual(r.zulf.slice(0,2),['ledger','Zulfiqar Traders']);
+  assert.deepStrictEqual(r.pay,['payment','Aziz bhai',20000]);
+  assert.deepStrictEqual(r.payUr,['payment','Ahmed Builders',5000]);
+  assert.deepStrictEqual(r.exp,['expense','',5000]);
+  assert.deepStrictEqual(r.kar,['karigarPay','Rafiq',3000]);
+  assert.deepStrictEqual(r.newOrder.slice(0,2),['newOrder','Zulfiqar Traders']);
+  assert.deepStrictEqual(r.price,['price','','45x80']);
+  assert.deepStrictEqual(r.order,['order','ORD-21','']);
+  assert.deepStrictEqual(r.rem.slice(0,2),['reminder','Aziz bhai']);
+  assert.deepStrictEqual([r.day[0],r.day[1]],['screen','aaj ka hisaab']);
+  assert.deepStrictEqual([r.stock[0],r.stock[1]],['screen','stock']);
+  assert.deepStrictEqual([r.wood[0],r.wood[1]],['screen','lakri']);
+  assert.deepStrictEqual([r.kr[0],r.kr[1]],['screen','karigar report']);
+  assert.deepStrictEqual([r.back[0],r.back[1]],['screen','backup']);
+  assert.strictEqual(r.none[0],'search');
+  assert.ok(r.ledgerOpen);
+  assert.strictEqual(r.payAmt,'7000');
+  assert.deepStrictEqual([r.qp.design,r.qp.size,r.qp.qty],['Rose Design','36x84',3]);
+  assert.ok(r.alt,'uses the phone\'s second guess');
+  assert.strictEqual(r.search,'kuch bhi nahi');
+});
+
 (async()=>{
   const server=await serve();
   const url=`http://localhost:${server.address().port}/index.html`;
