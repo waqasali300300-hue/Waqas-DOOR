@@ -1173,6 +1173,31 @@ test('auto system 2: wood and karigar by design, delivery date, wood warning, lo
   assert.ok(r.warn,'wood shortage warned');
 });
 
+test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Aziz bhai',phone:'0300'},{id:2,name:'Zulfiqar Traders'}];
+    priceList=[{id:1,size:'Mughleazam',rate:950}];orders=[];saveAll();
+    applyVoiceText('Aziz ka order 45 80 5, 39 80 5, 33 80 10');await wait(400);
+    let out={open:document.getElementById('orderModal').classList.contains('open'),
+      party:document.getElementById('orderPartyId').value,
+      mic:!!document.getElementById('hkOrderMic'),
+      doors:currentOrderDoors.map(d=>[String(d.size).trim(),Number(d.qty)])};
+    applyVoiceText('60 80 Mughleazam 2');await wait(300);
+    out.more=currentOrderDoors.map(d=>[String(d.size).trim(),Number(d.qty)]);
+    out.rate=Number(document.getElementById('doorRate_3')?.value);
+    applyVoiceText('bas');await wait(100);
+    out.dict=window.hkDictation;out.saved=orders.length;
+    out.priceStays=hkUnderstand('45x80 darwaze ki qeemat').kind;
+    return out;
+  });
+  assert.strictEqual(r.open,true);assert.strictEqual(r.party,'1');assert.strictEqual(r.mic,true);
+  assert.deepStrictEqual(r.doors,[['45x80',5],['39x80',5],['33x80',10]]);
+  assert.deepStrictEqual(r.more[3],['60x80 Mughleazam',2]);
+  assert.strictEqual(r.rate,950);
+  assert.strictEqual(r.dict,false);assert.strictEqual(r.saved,0);
+});
+
 test('voice commands: names in Urdu or Roman letters, every kind of command opens the right thing',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));

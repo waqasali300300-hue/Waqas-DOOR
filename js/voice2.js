@@ -182,6 +182,12 @@
   window.applyVoiceText=function(text,alts){
     // Several guesses from the phone: use the first one that means something.
     let list=[text].concat(alts||[]).filter(Boolean),pick=null,firstSearch=null;
+    // Order by voice: door sizes said while an order is open, or with the word "order".
+    if(orderOpen()&&list.some(t=>has(String(t).toLowerCase(),STOP_WORDS))){window.hkDictation=false;closeVoiceSheet(true);say('Theek hai — check kar ke Save dabayein');return {kind:'stop'};}
+    for(const t of list){
+      let lines=parseDoors(t),low=String(t).toLowerCase();
+      if(lines.length&&(orderOpen()||(has(low,['order','آرڈر','darwaz','دروازے','door'])&&!has(low,W.price)))){closeVoiceSheet();dictateOrder(t,lines);return {kind:'order-doors',lines};}
+    }
     for(const t of list){let v=understand(t);if(v.kind!=='search'){pick={v,t};break;}if(!firstSearch)firstSearch={v,t};}
     pick=pick||firstSearch;
     if(!pick){showToast('⚠️ Awaaz nahi suni');return;}
@@ -189,8 +195,84 @@
     return pick.v;
   };
 
+  // ── Speaking an order: "Aziz ka order 45 80 5, 39 80 5, 33 80 10 Mughleazam" ──
+  // Every two numbers that look like a door (width 12–96, height 30–120) start a
+  // door line; the number after them is the count (1 if none). A design name said
+  // with a line goes to that line, "jori" makes it a pair.
+  function designsList(){
+    let seen=new Set(),out=[];
+    [...(doorDesigns||[]),...(priceList||[]).map(p=>p.size)].forEach(n=>{n=String(n||'').trim();if(n&&!/^\d/.test(n)&&!seen.has(n.toLowerCase())){seen.add(n.toLowerCase());out.push({name:n});}});
+    return out;
+  }
+  function parseDoors(raw){
+    let t=digits(raw).toLowerCase().replace(/(\d)\s*(?:x|×|by|bai|بائی|ضرب|into)\s*(\d)/g,'$1 $2');
+    // Split into pieces at numbers, keeping the words between them.
+    let parts=t.split(/(\d+(?:\.\d+)?)/).filter(x=>x!=='');
+    let lines=[],nums=[],words='';
+    const flush=()=>{
+      if(nums.length>=2){
+        let [w,h,q]=nums;
+        let d=findByName(designsList(),words);
+        lines.push({w,h,qty:q&&q<=500?Math.round(q):1,design:d?d.name:'',jori:/jori|joڑi|جوڑی|pair/.test(words)});
+      }
+      nums=[];words='';
+    };
+    for(const part of parts){
+      if(/^\d/.test(part)){
+        let n=Number(part);
+        if(nums.length===0&&!(n>=12&&n<=96)){words+=' ';continue;}            // not a width: skip
+        if(nums.length===1&&!(n>=30&&n<=120)){nums=[];continue;}               // not a height: start again
+        if(nums.length===2){
+          // A third number: the count, unless it starts the next door instead.
+          if(n>=12&&n<=96&&n!==Math.round(n))continue;
+          nums.push(n);flush();continue;
+        }
+        nums.push(n);
+      }else{
+        if(nums.length===2&&/,|aur|اور|phir|پھر|\bthen\b/.test(part))flush();
+        words+=' '+part;
+      }
+    }
+    flush();
+    return lines;
+  }
+  window.hkParseDoors=parseDoors;
+  function orderOpen(){return document.getElementById('orderModal')?.classList.contains('open');}
+  async function addDoors(lines){
+    // A fresh form may hold one empty line: use it up first.
+    if(currentOrderDoors.length===1&&!String(currentOrderDoors[0].size||'').trim()){currentOrderDoors=[];renderOrderDoors();}
+    for(const l of lines){
+      let size=`${l.w}x${l.h}`+(l.jori?' Jori':'')+(l.design?' '+l.design:'');
+      addDoorFromSize(size);
+      let i=currentOrderDoors.length-1;
+      await wait(20);
+      setVal('doorSize_'+i,size);
+      let q=document.getElementById('doorQty_'+i);if(q)q.value=l.qty;
+      let pr=l.design&&(priceList||[]).find(p=>String(p.size).toLowerCase()===l.design.toLowerCase());
+      if(pr&&num(pr.rate)){let r=document.getElementById('doorRate_'+i);if(r)r.value=num(pr.rate);}
+      updateDoor(i);
+    }
+    renderOrderDoors();updateOrderTotals();
+  }
+  async function dictateOrder(raw,lines){
+    let fresh=!orderOpen();
+    if(fresh){
+      try{document.querySelectorAll('.modal.open').forEach(m=>{if(m.id!=='confirmModal')closeModal(m.id);});closeDrawer&&closeDrawer();}catch(e){}
+      openOrderModal();await wait(80);
+      let p=findByName(parties,raw);
+      if(p)setVal('orderPartyId',p.id);
+    }
+    await addDoors(lines);
+    let total=currentOrderDoors.reduce((s,d)=>s+num(d.doorAmount),0);
+    window.hkDictation=true;
+    say(`${lines.length} darwaze jud gaye: ${lines.map(l=>`${l.w}x${l.h}×${l.qty}`).join(', ')} · kul ${fmtRs(total)} — aur boliye ya check kar ke Save`);
+    return true;
+  }
+  window.hkDictateOrder=dictateOrder;
+  const STOP_WORDS=['bas','ho gaya','ho gya','stop','band karo','بس','ہو گیا','ہوگیا'];
+
   // ── Listening sheet (browser) with examples ──
-  const EXAMPLES=['Aziz ka khata','naya order Aziz','payment Aziz 20000','kharcha bijli 5000','Rafiq ko 3000 do','order 21','45x80 Mughleazam 4 ki qeemat','Aziz ko yaad dahani','aaj ka hisaab','stock'];
+  const EXAMPLES=['Aziz ka order 45 80 5, 39 80 5','Aziz ka khata','naya order Aziz','payment Aziz 20000','kharcha bijli 5000','Rafiq ko 3000 do','order 21','45x80 Mughleazam 4 ki qeemat','Aziz ko yaad dahani','aaj ka hisaab','stock'];
   function sheet(msg){
     let s=document.getElementById('hkVoiceSheet');
     if(!s){
@@ -204,7 +286,7 @@
     return s;
   }
   let rec=null;
-  window.closeVoiceSheet=function(stop){document.getElementById('hkVoiceSheet')?.remove();if(stop&&rec){try{rec.abort();}catch(e){}rec=null;}};
+  window.closeVoiceSheet=function(stop){document.getElementById('hkVoiceSheet')?.remove();if(stop){window.hkDictation=false;if(rec){try{rec.abort();}catch(e){}rec=null;}}};
   let origStart=window.startVoice;
   window.startVoice=function(){
     let nsr=window.hkNative&&window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.SpeechRecognition;
@@ -212,15 +294,28 @@
     let SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR)return origStart?origStart.apply(this,arguments):showToast('⚠️ Is browser mein awaaz nahi chalti — Google Chrome istemal karein');
     rec=new SR();rec.lang='ur-PK';rec.interimResults=true;rec.maxAlternatives=5;
-    sheet('Boliye… jo kholna hai');
+    sheet(window.hkDictation&&orderOpen()?'Agle darwaze boliye… (ruknay ke liye "bas")':'Boliye… jo kholna hai');
     rec.onresult=e=>{
       let r=e.results[e.results.length-1];
       let el=document.querySelector('#hkVoiceSheet .hk-voice-msg');if(el)el.textContent='“'+r[0].transcript+'”';
       if(r.isFinal){let alts=[...r].slice(1).map(a=>a.transcript);applyVoiceText(r[0].transcript,alts);}
     };
     rec.onerror=e=>{closeVoiceSheet();showToast(e.error==='not-allowed'?'⚠️ Mic ki ijazat dein (browser settings)':'⚠️ Awaaz nahi suni — dobara koshish karein');};
-    rec.onend=()=>{setTimeout(()=>closeVoiceSheet(),300);rec=null;};
+    rec.onend=()=>{
+      rec=null;
+      if(window.hkDictation&&orderOpen()){setTimeout(()=>{if(window.hkDictation&&orderOpen())startVoice();},350);return;}
+      setTimeout(()=>closeVoiceSheet(),300);
+    };
     try{rec.start();}catch(e){}
+  };
+  let origOpenOrder=window.openOrderModal;
+  window.openOrderModal=function(){
+    let r=origOpenOrder.apply(this,arguments);
+    if(!document.getElementById('hkOrderMic')){
+      let body=document.getElementById('orderModalBody')||document.querySelector('#orderModal .modal-body');
+      if(body)body.insertAdjacentHTML('afterbegin','<button type="button" id="hkOrderMic" class="btn btn-gold btn-sm" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="window.hkDictation=true;startVoice()">🎤 Bol kar darwaze likhein (maslan: 45 80 5, 39 80 5)</button>');
+    }
+    return r;
   };
   async function nativeListen(sr){
     try{
