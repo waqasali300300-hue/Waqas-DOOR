@@ -11,7 +11,7 @@
   const GROUPS=[
     ['kaam','🛒','Orders aur Kaam',['tabHome','tabOrders','openQuickPrice','openAlbum','openQuotationList','tabProduction','openWorkshopBoard','openCuttingPicker','openMorning','openDayClose']],
     ['gahak','📒','Gahak aur Wasooli',['tabKhata','tabParties','openBulkReminders','openReminderCenter','openOldCustomers','openStatements','openCatalog','openImport']],
-    ['paisa','💰','Paisa',['tabBankBook','tabExpenses','openBills','openChequeListModal','openLoans','setSalesTarget']],
+    ['paisa','💰','Paisa',['openMyPosition','tabBankBook','tabExpenses','openBills','openChequeListModal','openLoans','setSalesTarget']],
     ['karigar','👷','Karigar',['tabLabour','openKarigarPay','openKarigarList','openAttendanceModal','openKarigarReport','openTools']],
     ['maal','🪵','Maal aur Rate',['tabInventory','tabPurchases','tabSuppliers','openWoodStockModal','openWoodBuyList','openStockCount','openPriceListModal','openRateChange','openRateListPdf','openRawMaterialCalcModal']],
     ['report','📊','Reports',['tabReports','openProfitReport','openDesignReport','openYearReport','exportExcel','openActivityLog']],
@@ -21,7 +21,7 @@
     tabOrders:'Orders',openQuickPrice:'Fauri Qeemat',openAlbum:'Design Album',openQuotationList:'Estimates',tabProduction:'Production',openWorkshopBoard:'Kaam ka Board',openCuttingPicker:'Cutting List',
     tabLabour:'Labour',openKarigarReport:'Karigar Report',tabKhata:'Party Khata',openBulkReminders:'Wasooli Yaad Dahani',tabParties:'Parties',
     openOldCustomers:'Purane Gahak',openImport:'Excel se Parties',tabInventory:'Stock',tabPurchases:'Khareed',tabSuppliers:'Suppliers',
-    tabExpenses:'Kharcha',openBills:'Mahana Bill',tabBankBook:'Bank / Cash',openChequeListModal:'Cheques',openLoans:'Zaati Qarz',
+    tabExpenses:'Kharcha',openMyPosition:'Kul Hisaab',openBills:'Mahana Bill',tabBankBook:'Bank / Cash',openChequeListModal:'Cheques',openLoans:'Zaati Qarz',
     tabReports:'Reports',openDesignReport:'Design Report',openYearReport:'Saal ka Hisaab',setSalesTarget:'Mahine ka Hadaf',
     openStatements:'Mahana Statement',openProfitReport:'Munafa Report',exportExcel:'Excel Export',tabRecycle:'Recycle Bin',
     openSearchModal:'Search',openQrScan:'QR Scan',openCalculator:'Calculator',openKarigarList:'Karigar',openTools:'Auzaar',
