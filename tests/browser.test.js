@@ -1224,6 +1224,58 @@ test('big khata: old balance either way, orders done and running, payment in and
   assert.ok(/aap ne Imran ko dene hain/.test(r.cardOwe),r.cardOwe);
 });
 
+test('supplier khata: payment lagwayi from a customer, kul hisaab of the whole business',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    suppliers=[{id:5,name:'Imran Wood',phone:'0311',openingBalance:25000000,payments:[]}];
+    parties=[{id:1,name:'Aziz',phone:'0300',openingBalance:0},{id:2,name:'Bilal',openingBalance:-50000}];
+    orders=[{id:11,orderNo:'ORD-1',partyId:1,date:'2026-11-01',orderTotal:800000,status:'delivered',payments:[]},
+            {id:12,orderNo:'ORD-2',partyId:1,date:'2026-11-03',orderTotal:400000,status:'cutting',payments:[]}];
+    purchases=[{id:3,supplierId:5,item:'Deodar',qty:10,rate:20000,total:200000,account:'udhaar',date:'2026-11-02'}];
+    bankTransactions=[{id:90,type:'deposit',account:'Cash',amount:1000000,date:'2026-11-01'}];saveAll();
+    let out={};
+    // Aziz pays 10 lakh straight to Imran.
+    openLagwao(1,5);await wait(50);
+    document.getElementById('hkLagAmt').value=1000000;saveLagwao();await wait(100);
+    out.aziz=getPartyBalance(parties[0]);
+    out.ord=[getOrderTotalPaid(orders[0]),getOrderTotalPaid(orders[1])];
+    out.imran=hkSupplierBalance(suppliers[0]);
+    out.cashTx=bankTransactions.length;
+    // Shop pays Imran 3 lakh in cash.
+    openSupplierPayment(5);await wait(50);
+    document.getElementById('supPayAmt').value=300000;document.getElementById('supPayAcc').value='Cash';saveSupplierPayment(5);await wait(100);
+    out.imran2=hkSupplierBalance(suppliers[0]);
+    openSupplierLedger(5);await wait(100);
+    let ss=hkSupSummary(suppliers[0]);out.sup=[ss.old,ss.took,ss.cash,ss.via];
+    out.supCard=document.getElementById('hkSupK2')?.innerText||'';
+    let x=hkPosition();
+    out.pos=[x.dene,x.cash,x.lene,x.runVal,x.runDue,x.net];
+    openMyPosition();await wait(100);
+    out.posText=document.getElementById('hkPosB')?.innerText||'';
+    out.menu=!!document.getElementById('hkPosBtn');
+    out.voice=hkUnderstand('mera kul hisaab').kind;
+    // Deleting the customer side takes it off the supplier too.
+    let link=orders[1].payments.find(p=>p.linkId);
+    deletePayment(12,link.id);await wait(50);
+    document.querySelector('#confirmModal .btn-danger, #confirmModal [onclick*="confirm"]')?.click();await wait(100);
+    out.afterDel=[getOrderTotalPaid(orders[1]),hkSupplierBalance(suppliers[0])];
+    return out;
+  });
+  assert.strictEqual(r.aziz,200000);
+  assert.deepStrictEqual(r.ord,[800000,200000]);
+  assert.strictEqual(r.imran,24200000);
+  assert.strictEqual(r.cashTx,1,'no cash moved for a lagwayi payment');
+  assert.strictEqual(r.imran2,23900000);
+  assert.deepStrictEqual(r.sup,[25000000,200000,300000,1000000]);
+  assert.ok(/Aap ne Imran Wood ko dene hain/.test(r.supCard)&&/2,39,00,000/.test(r.supCard)&&/2 crore 39 lakh/.test(r.supCard),r.supCard);
+  // dene = Imran 2,39,00,000 + Bilal advance 50,000; cash 10 lakh − 3 lakh; lene = Aziz 2 lakh
+  assert.deepStrictEqual(r.pos,[23950000,700000,200000,400000,200000,700000+200000-23950000]);
+  assert.ok(/Main ne dene hain/.test(r.posText)&&/Imran Wood/.test(r.posText)&&/Bilal \(advance\)/.test(r.posText),r.posText);
+  assert.strictEqual(r.menu,true);
+  assert.strictEqual(r.voice,'screen');
+  assert.deepStrictEqual(r.afterDel,[0,24100000]);
+});
+
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));

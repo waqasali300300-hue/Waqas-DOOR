@@ -46,7 +46,7 @@
   // Supplier payments go to the cash book as money out.
   (window.hkCashbookSources=window.hkCashbookSources||[]).push(want=>{
     suppliers.forEach(s=>(s.payments||[]).forEach(p=>{
-      if(num(p.amount)<=0)return;
+      if(num(p.amount)<=0||p.viaPartyId)return; // paid by a customer: no shop cash moved
       want.set('sup:'+p.id,{type:'withdrawal',account:p.account||'Cash',amount:num(p.amount),date:p.date,description:'Supplier payment: '+s.name});
     }));
   });

@@ -67,6 +67,7 @@
   const SCREENS=[
     [['aaj ka hisaab','aaj ka hisab','day close','آج کا حساب'],()=>openDayClose()],
     [['subah','morning','صبح'],()=>openMorning()],
+    [['kul hisaab','kul hisab','mera hisaab','mera hisab','sara hisaab','کل حساب','میرا حساب','سارا حساب'],()=>openMyPosition()],
     [['saal ka hisaab','saal ka hisab','year','سال کا حساب'],()=>openYearReport()],
     [['design report','kya bikta','ڈیزائن رپورٹ'],()=>openDesignReport()],
     [['munafa','profit','منافع','نقصان'],()=>openProfitReport()],
