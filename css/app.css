@@ -667,3 +667,28 @@ body.dark-mode .hk-pos-red{background:#3b1414;color:#fecaca;}
 body.dark-mode .hk-pos-green{background:#0f2e22;color:#a7f3d0;}
 body.dark-mode .hk-pos-blue{background:#14233b;color:#bfdbfe;}
 body.dark-mode .hk-pos-purple{background:#25183f;color:#ddd6fe;}
+/* ── Paisa Entry + home position card ── */
+.hk-pe-kinds{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+.hk-pe-kind{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border:1.5px solid var(--border);border-radius:12px;background:var(--card);color:var(--text);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
+.hk-pe-kind span{font-size:20px;}
+.hk-pe-kind.on{border-color:var(--primary);background:var(--primary);color:#fff;}
+.hk-pe-amt{font-size:20px!important;font-weight:800;}
+.hk-pe-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.hk-pe-chips button{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:999px;padding:5px 10px;font:inherit;font-size:11px;cursor:pointer;}
+.hk-pe-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.hk-pe-after{font-size:11.5px;margin:4px 0 10px;color:var(--text);}
+.hk-pe-after:empty{display:none;}
+.hk-hpos{display:block;width:100%;text-align:left;border:1px solid var(--border);border-radius:16px;padding:12px;margin:10px 0;background:var(--card);color:var(--text);font:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(15,37,71,.06);}
+.hk-hpos-h{display:flex;justify-content:space-between;font-weight:800;font-size:13px;color:var(--primary);margin-bottom:8px;}
+.hk-hpos-g{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.hk-hpos-g div{border-radius:10px;padding:7px 6px;text-align:center;}
+.hk-hpos-g small{display:block;font-size:10px;font-weight:700;}
+.hk-hpos-g b{font-size:14px;}
+.hk-hpos-g .r{background:#fee2e2;color:#7f1d1d;}
+.hk-hpos-g .g{background:#d1fae5;color:#065f46;}
+.hk-hpos-g .b{background:#dbeafe;color:#1e3a8a;}
+.hk-hpos-n{text-align:center;font-size:12px;font-weight:800;margin-top:8px;color:#065f46;}
+.hk-hpos-n.neg{color:#b91c1c;}
+body.dark-mode .hk-hpos-g .r{background:#3b1414;color:#fecaca;}
+body.dark-mode .hk-hpos-g .g{background:#0f2e22;color:#a7f3d0;}
+body.dark-mode .hk-hpos-g .b{background:#14233b;color:#bfdbfe;}
