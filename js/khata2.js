@@ -344,7 +344,7 @@
       ${get.length?`<div class="hk-pos-h">📥 Jin se lena hai</div>${get.slice(0,15).join('')}${get.length>15?`<button type="button" class="hk-pos-row" onclick="closeModal('hkPosModal');switchTab('tabKhata')"><span>… aur ${get.length-15} — sab dekhein</span><b>›</b></button>`:''}`:''}
       ${x.run.length?`<div class="hk-pos-h">🛠 Chalte orders</div>${x.run.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(o=>`<button type="button" class="hk-pos-row" onclick="viewOrderDetail(${o.id})"><span>${esc(o.orderNo||'')} · ${esc(getPartyName(o.partyId))} · ${esc(o.status||'pending')}</span><b>${fmtRs(o.orderTotal)}</b></button>`).join('')}`:''}
       <div class="hk-k2-btns">
-        ${parties.length&&suppliers.length?`<button class="btn btn-outline btn-sm" onclick="openLagwao(null,null)">🔁 Payment lagwayi</button>`:''}
+        <button class="btn btn-primary btn-sm" onclick="openPaisaEntry()">💳 Paisa Entry</button>
         <button class="btn btn-gold btn-sm" onclick="shareMyPosition()">📤 Share</button>
       </div>`;
     openModal('hkPosModal');
@@ -358,5 +358,115 @@
   document.addEventListener('hk:ready',()=>{
     let anchor=document.querySelector('.drawer-item[data-tab="tabBankBook"]');
     if(anchor&&!document.getElementById('hkPosBtn'))anchor.insertAdjacentHTML('beforebegin',`<button class="drawer-item" id="hkPosBtn" onclick="openMyPosition();closeDrawer();"><span class="t-icon">💼</span>Mera Kul Hisaab</button>`);
+  });
+  // ════════ Paisa Entry: every kind of payment from one simple form ════════
+  const KINDS=[
+    ['in','📥','Gahak se aaye','Gahak ne paise diye'],
+    ['out','📤','Supplier ko diye','Aap ne supplier ko diye'],
+    ['lag','🔁','Gahak ne supplier ko diye','Payment lagwayi'],
+    ['back','💸','Gahak ko diye','Advance wapas / gahak ko diye']
+  ];
+  let peKind='in';
+  function opts(list,bal,label){
+    return list.slice().sort((a,b)=>Math.abs(bal(b))-Math.abs(bal(a))).map(x=>`<option value="${x.id}">${esc(x.name)} — ${label(bal(x))}</option>`).join('');
+  }
+  function partyLabel(b){return b>=1?'baqi '+fmtRs(b):b<=-1?'advance '+fmtRs(-b):'saaf';}
+  function supLabel(b){return b>=1?'dena '+fmtRs(b):b<=-1?'advance '+fmtRs(-b):'saaf';}
+  window.openPaisaEntry=function(kind,pid,sid){
+    if(kind)peKind=kind;
+    let m=document.getElementById('hkPeModal');
+    if(!m){
+      m=document.createElement('div');m.className='modal';m.id='hkPeModal';
+      m.innerHTML=`<div class="modal-box" style="max-width:460px;"><div class="modal-head"><span>💳 Paisa Entry</span> <button class="modal-close" onclick="closeModal('hkPeModal')">✕</button></div><div class="modal-body" id="hkPeB"></div></div>`;
+      document.body.appendChild(m);
+    }
+    let showParty=peKind!=='out',showSup=peKind==='out'||peKind==='lag',showAcc=peKind!=='lag';
+    document.getElementById('hkPeB').innerHTML=`
+      <div class="hk-pe-kinds">${KINDS.map(([k,i,l])=>`<button type="button" class="hk-pe-kind ${k===peKind?'on':''}" onclick="openPaisaEntry('${k}')"><span>${i}</span>${l}</button>`).join('')}</div>
+      ${showParty?`<div class="form-group"><label class="form-label">👤 Gahak</label>${parties.length?`<select class="form-select" id="hkPeParty" onchange="hkPeShow()">${opts(parties,getPartyBalance,partyLabel)}</select>`:'<p class="hk-auto-help">Pehle party add karein</p>'}</div>`:''}
+      ${showSup?`<div class="form-group"><label class="form-label">🪵 Supplier</label>${suppliers.length?`<select class="form-select" id="hkPeSup" onchange="hkPeShow()">${opts(suppliers,hkSupplierBalance,supLabel)}</select>`:'<p class="hk-auto-help">Pehle supplier add karein</p>'}</div>`:''}
+      <div class="form-group"><label class="form-label">💰 Raqam</label><input class="form-input hk-pe-amt" type="number" inputmode="numeric" id="hkPeAmt" oninput="hkPeShow()" placeholder="0">
+        <div class="hk-pe-chips">${[[1e4,'+10 hazar'],[1e5,'+1 lakh'],[1e6,'+10 lakh'],[1e7,'+1 crore']].map(([v,l])=>`<button type="button" onclick="let i=document.getElementById('hkPeAmt');i.value=(parseFloat(i.value)||0)+${v};hkPeShow()">${l}</button>`).join('')}<button type="button" onclick="document.getElementById('hkPeAmt').value='';hkPeShow()">✕</button></div>
+        <div id="hkPeW" class="hk-k2-w"></div></div>
+      <div class="hk-pe-row">
+        <div class="form-group"><label class="form-label">📅 Tareekh</label><input class="form-input" type="date" id="hkPeDate" value="${today()}"></div>
+        ${showAcc?`<div class="form-group"><label class="form-label">🏦 Kahan</label><select class="form-select" id="hkPeAcc">${BANK_ACCOUNTS.map(b=>`<option>${b}</option>`).join('')}</select></div>`:''}
+      </div>
+      <div class="form-group"><label class="form-label">📝 Note</label><input class="form-input" id="hkPeNote" placeholder="Optional"></div>
+      <div id="hkPeAfter" class="hk-pe-after"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="savePaisaEntry()">💾 Save</button>`;
+    if(pid!=null&&document.getElementById('hkPeParty'))document.getElementById('hkPeParty').value=pid;
+    if(sid!=null&&document.getElementById('hkPeSup'))document.getElementById('hkPeSup').value=sid;
+    hkPeShow();
+    if(!m.classList.contains('open'))openModal('hkPeModal');
+  };
+  // Live preview: what each khata will show after saving.
+  window.hkPeShow=function(){
+    let amt=num(document.getElementById('hkPeAmt')?.value);
+    let w=document.getElementById('hkPeW');if(w)w.textContent=words(amt);
+    let p=getPartyById(parseInt(document.getElementById('hkPeParty')?.value));
+    let sp=suppliers.find(x=>String(x.id)===String(document.getElementById('hkPeSup')?.value));
+    let out=[];
+    let pl=(name,b)=>b>=1?`${esc(name)} ne dene: <b>${fmtRs(b)}</b>`:b<=-1?`${esc(name)} ko dene: <b>${fmtRs(-b)}</b>`:`${esc(name)}: <b>saaf ✅</b>`;
+    let sl=(name,b)=>b>=1?`${esc(name)} ko dene: <b>${fmtRs(b)}</b>`:b<=-1?`${esc(name)} ne dene: <b>${fmtRs(-b)}</b>`:`${esc(name)}: <b>saaf ✅</b>`;
+    if(p&&peKind!=='out')out.push(pl(p.name,getPartyBalance(p)+(peKind==='back'?amt:-amt)));
+    if(sp&&(peKind==='out'||peKind==='lag'))out.push(sl(sp.name,hkSupplierBalance(sp)-amt));
+    let a=document.getElementById('hkPeAfter');
+    if(a)a.innerHTML=amt>0&&out.length?'Save ke baad → '+out.join(' · '):'';
+  };
+  window.savePaisaEntry=function(){
+    let g=id=>document.getElementById(id)?.value;
+    let amt=num(g('hkPeAmt')),date=g('hkPeDate')||today(),acc=g('hkPeAcc')||'Cash',note=g('hkPeNote')||'';
+    let pid=parseInt(g('hkPeParty')),sid=parseInt(g('hkPeSup'));
+    if(amt<=0){showToast('⚠️ Raqam likhein');return;}
+    let fill=(m)=>Object.entries(m).forEach(([id,v])=>{let e=document.getElementById(id);if(e)e.value=v;});
+    closeModal('hkPeModal');
+    if(peKind==='in'){
+      if(!getPartyById(pid))return showToast('⚠️ Gahak chunein');
+      openReceivePaymentModal(pid);fill({payAmount:amt,payDate:date,payMethod:acc,payNote:note});addPartyPayment();
+    }else if(peKind==='out'){
+      if(!suppliers.some(x=>x.id===sid))return showToast('⚠️ Supplier chunein');
+      openSupplierPayment(sid);fill({supPayAmt:amt,supPayDate:date,supPayAcc:acc,supPayNote:note});saveSupplierPayment(sid);
+    }else if(peKind==='lag'){
+      if(!getPartyById(pid)||!suppliers.some(x=>x.id===sid))return showToast('⚠️ Gahak aur supplier chunein');
+      openLagwao(pid,sid);fill({hkLagAmt:amt,hkLagDate:date,hkLagNote:note});saveLagwao();
+    }else{
+      if(!getPartyById(pid))return showToast('⚠️ Gahak chunein');
+      openGivePayment(pid);fill({hkGiveAmt:amt,hkGiveDate:date,hkGiveMethod:acc,hkGiveNote:note});saveGivePayment(pid);
+    }
+    if(document.getElementById('hkPosModal')?.classList.contains('open'))openMyPosition();
+    if(window.renderHome)renderHome();
+  };
+
+  // ════════ Home: the whole position at a glance ════════
+  function homeCard(){
+    let kp=document.getElementById('hmKpis');if(!kp)return;
+    let el=document.getElementById('hkHomePos');
+    if(typeof hkIsStaff==='function'&&hkIsStaff()){el&&el.remove();return;}
+    let x=position();
+    if(!parties.length&&!suppliers.length&&!bankTransactions.length){el&&el.remove();return;}
+    let short=n=>{n=Math.abs(n);return n>=1e7?(n/1e7).toFixed(n>=1e8?0:2).replace(/\.?0+$/,'')+' cr':n>=1e5?(n/1e5).toFixed(1).replace(/\.0$/,'')+' lakh':fmtRs(n);};
+    let html=`<button type="button" class="hk-hpos" onclick="openMyPosition()">
+      <div class="hk-hpos-h">💼 Mera Kul Hisaab <span>›</span></div>
+      <div class="hk-hpos-g">
+        <div class="r"><small>📤 Dena</small><b>${short(x.dene)}</b></div>
+        <div class="g"><small>💰 Mojood</small><b>${short(x.cash)}</b></div>
+        <div class="b"><small>📥 Lena</small><b>${short(x.lene)}</b></div>
+      </div>
+      <div class="hk-hpos-n ${x.net<0?'neg':''}">Sab mila kar: ${x.net<0?'− ':''}${short(x.net)}</div>
+    </button>`;
+    if(el)el.outerHTML=html.replace('class="hk-hpos"','id="hkHomePos" class="hk-hpos"');
+    else kp.insertAdjacentHTML('afterend',html.replace('class="hk-hpos"','id="hkHomePos" class="hk-hpos"'));
+  }
+  window.hkHomePos=homeCard;
+  document.addEventListener('hk:ready',()=>{
+    ['renderHome','renderDashboard'].forEach(n=>{
+      let orig=window[n];
+      if(orig)window[n]=function(){let r=orig.apply(this,arguments);try{homeCard();}catch(e){console.warn('home pos',e);}return r;};
+    });
+    // The home "Payment" button opens the one simple form.
+    let b=document.querySelector('.hm-act[onclick="quickAddPayment()"]');
+    if(b)b.setAttribute('onclick','openPaisaEntry()');
+    homeCard();
   });
 })();

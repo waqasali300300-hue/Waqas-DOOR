@@ -41,21 +41,29 @@
   }
   window.hkFindByName=findByName;
   function has(t,words){return words.some(w=>t.includes(w));}
+  // "2.5 crore", "2 crore 35 lakh", "25 lakh 40 hazar", "50 hazar", "20000"
+  const UNITS=[[/^(crore|karor|karod|کروڑ)/,1e7],[/^(lakh|lac|lakh|لاکھ)/,1e5],[/^(hazar|hazaar|hajar|thousand|ہزار)/,1e3],[/^(sau|سو)/,100]];
   function amountOf(t){
-    let s=digits(t).replace(/(\d)[,\s](?=\d{3}\b)/g,'$1');
-    let nums=(s.replace(/\d+\s*[x×]\s*\d+/gi,' ').match(/\d+(\.\d+)?/g)||[]).map(Number);
-    let a=nums.length?Math.max(...nums):0;
-    if(/hazar|hazaar|ہزار|thousand/i.test(s)&&a&&a<1000)a*=1000;
-    if(/lakh|لاکھ/i.test(s)&&a&&a<1000)a*=100000;
-    return a;
+    let s=digits(t).toLowerCase().replace(/(\d)[,\s](?=\d{3}\b)/g,'$1').replace(/\d+\s*[x×]\s*\d+/gi,' ');
+    let re=/(\d+(?:\.\d+)?)\s*([^\d\s]*)/g,m,total=0,unitSeen=false,plain=[];
+    while((m=re.exec(s))){
+      let n=Number(m[1]),u=UNITS.find(([r])=>r.test(m[2]));
+      if(u){total+=n*u[1];unitSeen=true;}
+      else if(unitSeen&&n<1000)total+=n;
+      else plain.push(n);
+    }
+    let a=unitSeen?total:(plain.length?Math.max(...plain):0);
+    return Math.round(a);
   }
+  window.hkAmountOf=amountOf;
   function wait(ms){return new Promise(r=>setTimeout(r,ms));}
   function setVal(id,v){let e=document.getElementById(id);if(e){e.value=v;e.dispatchEvent(new Event('change',{bubbles:true}));}}
 
   // ── Words ──
   const W={
     expense:['kharch','expense','خرچ','خرچہ'],
-    payment:['payment','paiment','wasool','wusool','jama','received','وصول','ادائیگی','پیمنٹ','پیمینٹ','جمع'],
+    payment:['payment','paiment','wasool','wusool','jama','received','aaye','aye ','aa gaye','mile','وصول','ادائیگی','پیمنٹ','پیمینٹ','جمع','آئے','آ گئے','ملے'],
+    gave:['diye','diya','diey','de diye','de diya','ko payment','ada ki','دیے','دیئے','دیا','دے دیے','ادا کی'],
     karigarPay:['mazdoori do','mazduri do','karigar ko','labour payment','مزدوری دو','مزدوری دے','کاریگر کو'],
     newOrder:['naya order','new order','order banao','order bana','نیا آرڈر','آرڈر بناؤ','آرڈر بنا'],
     price:['qeemat','qimat','keemat','price','قیمت','ریٹ بتاؤ'],
@@ -126,6 +134,15 @@
     let size=(t.match(/(\d+(?:\.\d+)?)\s*(?:x|×|by|بائی|ضرب)\s*(\d+(?:\.\d+)?)/i)||[]);
     let orderNo=(t.match(/(?:order|ord|آرڈر)\s*(?:no|number|نمبر)?\s*[-#]?\s*(\d+)/i)||[])[1];
     if(has(t,W.karigarPay)&&karigar)return {kind:'karigarPay',karigar,amount};
+    // Supplier money: "Aziz ne Imran ko 5 lakh diye" (lagwayi) or "Imran ko 3 lakh diye".
+    let supplier=typeof suppliers!=='undefined'?findByName(suppliers,t):null;
+    if(supplier&&(has(t,W.gave)||has(t,W.payment))){
+      let rest=t.replace(new RegExp(supplier.name.split(/\s+/)[0],'i'),' ');
+      let payer=findByName(parties,rest);
+      if(payer&&skel(payer.name)!==skel(supplier.name))return {kind:'lagwayi',party:payer,supplier,amount};
+      return {kind:'supplierPay',supplier,amount};
+    }
+    if(party&&has(t,W.gave)&&/\bko\b|کو/.test(t)&&!has(t,W.payment))return {kind:'giveParty',party,amount};
     if(has(t,W.expense)&&amount)return {kind:'expense',amount,words:(window.hkParseVoice?hkParseVoice(raw).words:'')};
     if(has(t,W.payment))return {kind:'payment',party,amount};
     if(has(t,W.newOrder))return {kind:'newOrder',party};
@@ -151,6 +168,16 @@
       case 'payment':
         if(v.party){openReceivePaymentModal(v.party.id);await wait(60);if(v.amount)setVal('payAmount',v.amount);return say(v.party.name+' ki payment'+(v.amount?' '+fmtRs(v.amount):'')+' — check kar ke Save');}
         quickAddPayment();return say('Party chunein'+(v.amount?' — raqam '+fmtRs(v.amount):''));
+      case 'lagwayi':
+        openLagwao(v.party.id,v.supplier.id);await wait(60);if(v.amount)setVal('hkLagAmt',v.amount);
+        document.getElementById('hkLagAmt')?.dispatchEvent(new Event('input'));
+        return say(`${v.party.name} ne ${v.supplier.name} ko${v.amount?' '+fmtRs(v.amount):''} — check kar ke Save`);
+      case 'supplierPay':
+        openSupplierPayment(v.supplier.id);await wait(60);if(v.amount)setVal('supPayAmt',v.amount);
+        return say(`${v.supplier.name} ko payment${v.amount?' '+fmtRs(v.amount):''} — check kar ke Save`);
+      case 'giveParty':
+        openGivePayment(v.party.id);await wait(60);if(v.amount){setVal('hkGiveAmt',v.amount);document.getElementById('hkGiveAmt')?.dispatchEvent(new Event('input'));}
+        return say(`${v.party.name} ko${v.amount?' '+fmtRs(v.amount):''} diye — check kar ke Save`);
       case 'karigarPay':
         openKarigarPay();await wait(80);
         if(v.amount)setVal('kpAmt_'+v.karigar.id,v.amount);
@@ -273,7 +300,7 @@
   const STOP_WORDS=['bas','ho gaya','ho gya','stop','band karo','بس','ہو گیا','ہوگیا'];
 
   // ── Listening sheet (browser) with examples ──
-  const EXAMPLES=['Aziz ka order 45 80 5, 39 80 5','Aziz ka khata','naya order Aziz','payment Aziz 20000','kharcha bijli 5000','Rafiq ko 3000 do','order 21','45x80 Mughleazam 4 ki qeemat','Aziz ko yaad dahani','aaj ka hisaab','stock'];
+  const EXAMPLES=['Aziz ka order 45 80 5, 39 80 5','Aziz ne Imran ko 5 lakh diye','Imran ko 2 lakh diye','mera kul hisaab','Aziz ka khata','naya order Aziz','payment Aziz 20000','kharcha bijli 5000','Rafiq ko 3000 do','order 21','45x80 Mughleazam 4 ki qeemat','Aziz ko yaad dahani','aaj ka hisaab','stock'];
   function sheet(msg){
     let s=document.getElementById('hkVoiceSheet');
     if(!s){

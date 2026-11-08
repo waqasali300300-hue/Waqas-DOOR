@@ -1276,6 +1276,55 @@ test('supplier khata: payment lagwayi from a customer, kul hisaab of the whole b
   assert.deepStrictEqual(r.afterDel,[0,24100000]);
 });
 
+test('easy money: one Paisa Entry form for all four kinds, home card, voice with crore and lakh',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    suppliers=[{id:5,name:'Imran',phone:'0311',openingBalance:25000000,payments:[]}];
+    parties=[{id:1,name:'Aziz',phone:'0300',openingBalance:3000000},{id:2,name:'Bilal',openingBalance:0}];
+    orders=[];purchases=[];bankTransactions=[];saveAll();renderAll();await wait(50);
+    let out={home:document.getElementById('hkHomePos')?.innerText||''};
+    out.homeBtn=document.querySelector('.hm-act span')?.parentElement.getAttribute('onclick');
+    // 1. Gahak se aaye
+    openPaisaEntry('in',1);await wait(50);
+    document.getElementById('hkPeAmt').value=500000;hkPeShow();
+    out.after=document.getElementById('hkPeAfter').innerText;
+    document.getElementById('hkPeAcc').value='HBL';savePaisaEntry();await wait(100);
+    out.aziz=getPartyBalance(parties[0]);out.hbl=bankTransactions.filter(t=>t.account==='HBL').reduce((s,t)=>s+t.amount,0);
+    document.querySelectorAll('.modal.open').forEach(m=>closeModal(m.id));
+    // 2. Supplier ko diye (chips: +1 lakh twice)
+    openPaisaEntry('out',null,5);await wait(50);
+    document.querySelectorAll('.hk-pe-chips button')[1].click();document.querySelectorAll('.hk-pe-chips button')[1].click();
+    savePaisaEntry();await wait(100);
+    out.imran=hkSupplierBalance(suppliers[0]);
+    // 3. Lagwayi
+    openPaisaEntry('lag',1,5);await wait(50);
+    document.getElementById('hkPeAmt').value=1000000;savePaisaEntry();await wait(100);
+    out.lag=[getPartyBalance(parties[0]),hkSupplierBalance(suppliers[0])];
+    // 4. Gahak ko diye
+    openPaisaEntry('back',2);await wait(50);
+    document.getElementById('hkPeAmt').value=20000;savePaisaEntry();await wait(100);
+    out.bilal=getPartyBalance(parties[1]);
+    renderHome();out.home2=document.getElementById('hkHomePos')?.innerText||'';
+    // Voice
+    const U=t=>{let v=hkUnderstand(t);return [v.kind,(v.party||{}).name||'',(v.supplier||{}).name||'',v.amount||0];};
+    out.v=[U('Aziz ne Imran ko 5 lakh diye'),U('Imran ko 2.5 crore payment'),U('Bilal ko 20 hazar diye'),U('payment Aziz 25 lakh 40 hazar'),U('Aziz se 2 lakh aaye')];
+    document.querySelectorAll('.modal.open').forEach(m=>closeModal(m.id));
+    applyVoiceText('Aziz ne Imran ko 5 lakh diye');await wait(200);
+    out.vForm=[document.getElementById('hkLagParty')?.value,document.getElementById('hkLagSup')?.value,document.getElementById('hkLagAmt')?.value];
+    return out;
+  });
+  assert.ok(/Dena/.test(r.home)&&/2.5 cr/.test(r.home)&&/30 lakh/.test(r.home),'home:'+r.home);
+  assert.strictEqual(r.homeBtn,'openPaisaEntry()');
+  assert.ok(/Aziz ne dene: Rs.2,500,000/.test(r.after),r.after);
+  assert.strictEqual(r.aziz,2500000);assert.strictEqual(r.hbl,500000);
+  assert.strictEqual(r.imran,24800000);
+  assert.deepStrictEqual(r.lag,[1500000,23800000]);
+  assert.strictEqual(r.bilal,20000);
+  assert.ok(/2.38 cr/.test(r.home2),r.home2);
+  assert.deepStrictEqual(r.v,[['lagwayi','Aziz','Imran',500000],['supplierPay','','Imran',25000000],['giveParty','Bilal','',20000],['payment','Aziz','',2540000],['payment','Aziz','',200000]]);
+  assert.deepStrictEqual(r.vForm,['1','5','500000']);
+});
+
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));
