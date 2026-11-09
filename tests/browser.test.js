@@ -1325,6 +1325,27 @@ test('easy money: one Paisa Entry form for all four kinds, home card, voice with
   assert.deepStrictEqual(r.vForm,['1','5','500000']);
 });
 
+test('khata card: payment and old khata buttons even when nothing is due',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Halim',phone:'0300',openingBalance:0}];orders=[];saveAll();renderAll();
+    switchTab('tabKhata');await wait(100);
+    let card=[...document.querySelectorAll('.khata-card')].find(c=>/Halim/.test(c.innerText)&&/Payment Aayi/.test(c.innerText));
+    let out={pay:!!card,old:!!card&&/Purana Hisaab/.test(card.innerText)};
+    // Old khata from the card, then a payment from the card.
+    card.querySelector('[onclick^="openOldKhata"]').click();await wait(50);
+    document.getElementById('hkOkAmt').value=300000;addOldKhataEntry(1,'maal');await wait(80);
+    out.afterOld=getPartyBalance(parties[0]);
+    closeModal('hkOldKhataModal');switchTab('tabKhata');await wait(80);
+    card=[...document.querySelectorAll('.khata-card')].find(c=>/Halim/.test(c.innerText)&&/Payment Aayi/.test(c.innerText));
+    card.querySelector('[onclick^="openReceivePaymentModal"]').click();await wait(50);
+    document.getElementById('payAmount').value=100000;addPartyPayment();await wait(80);
+    out.afterPay=getPartyBalance(parties[0]);
+    return out;
+  });
+  assert.deepStrictEqual(r,{pay:true,old:true,afterOld:300000,afterPay:200000});
+});
+
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));

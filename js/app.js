@@ -3190,7 +3190,8 @@ function renderKhata(){
       </div>
       <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-xs" onclick="openPartyLedger(${p.id})">📖 Digital Ledger</button>
-        ${balance>0?`<button class="btn btn-success btn-xs" onclick="openReceivePaymentModal(${p.id})">💵 Receive Payment</button>`:''}
+        <button class="btn btn-success btn-xs" onclick="openReceivePaymentModal(${p.id})">💵 Payment Aayi</button>
+        <button class="btn btn-outline btn-xs" onclick="openOldKhata(${p.id})">📒 Purana Hisaab</button>
         ${balance>0&&p.phone?`<button class="btn btn-outline btn-xs" onclick="sendWhatsAppReminder(${p.id})">💬 WhatsApp Reminder</button>`:''}
       </div>    </div>`;
   }).join('');

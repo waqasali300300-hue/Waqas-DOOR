@@ -47,7 +47,7 @@
         :'<div style="font-size:10.5px;color:var(--gray-500);">Abhi koi purani entry nahi</div>'}
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
         <input class="form-input" type="date" id="hkOkDate" value="${today()}" style="flex:1;min-width:130px;">
-        <input class="form-input" type="number" id="hkOkAmt" placeholder="Raqam" style="flex:1;min-width:100px;"></div>
+        <input class="form-input" type="number" id="hkOkAmt" placeholder="Raqam" style="flex:1;min-width:100px;" oninput="let w=document.getElementById('hkOkW');if(w&&window.hkRsWords)w.textContent=hkRsWords(this.value)"></div><small id="hkOkW" class="hk-k2-w"></small>
       <input class="form-input" id="hkOkNote" placeholder="Tafseel (maslan: 10 darwaze, bill #45)" style="margin-top:6px;">
       <div style="display:flex;gap:6px;margin-top:6px;">
         <button class="btn btn-primary" style="flex:1;" onclick="addOldKhataEntry(${p.id},'maal')">📦 Maal diya (party ne dene hain)</button>
