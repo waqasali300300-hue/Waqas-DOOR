@@ -4,7 +4,9 @@
 //   • a header with the shop name, date and cloud status
 //   • four big quick actions (+ Order, Payment, Kharcha, Party)
 //   • "Aksar istemal": the items this device opens most
-//   • groups that fold open/closed (remembered) and a search that looks everywhere
+//   • seven big group cards; a tap opens that group's buttons (‹ Wapas returns),
+//     so the first screen fits on a phone without scrolling
+//   • a mic button, and a search that looks in every group
 // The original buttons are moved, not copied, so every module's menu item keeps
 // working, and items added later are sorted in too.
 (function(){
@@ -17,6 +19,9 @@
     ['report','📊','Reports',['tabReports','openProfitReport','openDesignReport','openYearReport','exportExcel','openActivityLog']],
     ['app','⚙️','Settings aur Madad',[]] // everything else
   ];
+  const ABOUT={kaam:'Orders, estimate, production',gahak:'Khata, wasooli, parties',paisa:'Kul hisaab, bank, kharcha',
+    karigar:'Labour, mazdoori, hazri',maal:'Stock, khareed, rate list',report:'Munafa, saal, excel',app:'Backup, cloud, settings'};
+  const DEFAULT_FAV=['tabKhata','tabOrders','openMyPosition','openKarigarPay','tabBankBook','tabInventory'];
   const SHORT={tabHome:'Home',openMorning:'Subah ka Khaka',openDayClose:'Aaj ka Hisaab',openKarigarPay:'Karigar Payment',openMazdoori:'Di hui Mazdoori',openWoodBuyList:'Lakri List',
     tabOrders:'Orders',openQuickPrice:'Fauri Qeemat',openAlbum:'Design Album',openQuotationList:'Estimates',tabProduction:'Production',openWorkshopBoard:'Kaam ka Board',openCuttingPicker:'Cutting List',
     tabLabour:'Labour',openKarigarReport:'Karigar Report',tabKhata:'Party Khata',openBulkReminders:'Wasooli Yaad Dahani',tabParties:'Parties',
@@ -58,22 +63,49 @@
     body.querySelectorAll('.drawer-section-label').forEach(l=>l.remove());
     let wrap=document.getElementById('hkMenu');
     if(!wrap){
-      wrap=document.createElement('div');wrap.id='hkMenu';
-      let folded=store(FOLD_KEY)||[];
+      wrap=document.createElement('div');wrap.id='hkMenu';wrap.dataset.view='home';
+      let pay=window.openPaisaEntry?'openPaisaEntry()':'quickAddPayment()';
       wrap.innerHTML=`<div class="hk-menu-quick">
           <button onclick="closeDrawer();openOrderModal()"><span>➕</span>Naya Order</button>
-          <button onclick="closeDrawer();quickAddPayment()"><span>💳</span>Payment</button>
+          <button onclick="closeDrawer();${pay}"><span>💳</span>Payment</button>
           <button onclick="closeDrawer();openExpenseModal()"><span>🧾</span>Kharcha</button>
           <button onclick="closeDrawer();openPartyModal()"><span>👤</span>Party</button></div>
-        <div class="hk-menu-sec hk-menu-fav" id="hkMenuFav" hidden><div class="hk-menu-title">⭐ Aksar istemal</div><div class="hk-menu-grid"></div></div>`+
-        GROUPS.map(([id,icon,title])=>`<div class="hk-menu-sec${folded.includes(id)?' folded':''}" data-group="${id}">
-          <button class="hk-menu-title" onclick="hkToggleMenuGroup('${id}')"><span>${icon} ${title}</span><span class="hk-menu-chev">⌄</span></button>
+        ${window.startVoice?`<button class="hk-menu-voice" onclick="closeDrawer();startVoice()"><span class="hk-mv-i">🎤</span><span class="hk-mv-t"><b>Bol kar kholein</b><small>maslan: "Aziz ka khata", "kul hisaab"</small></span></button>`:''}
+        <div class="hk-menu-sec hk-menu-fav" id="hkMenuFav" hidden><div class="hk-menu-title">⭐ Aksar istemal</div><div class="hk-menu-grid"></div></div>
+        <div class="hk-menu-cards" id="hkMenuCards">${GROUPS.map(([id,icon,title])=>`<button class="hk-menu-card" data-card="${id}" onclick="hkOpenMenuGroup('${id}')">
+          <span class="hk-mc-icon">${icon}</span><span class="hk-mc-text"><b>${title}</b><small>${ABOUT[id]||''}</small></span><span class="hk-mc-n"></span></button>`).join('')}</div>`+
+        GROUPS.map(([id,icon,title])=>`<div class="hk-menu-sec" data-group="${id}">
+          <button class="hk-menu-title" onclick="hkMenuHome()"><span class="hk-menu-back">‹ Wapas</span><span>${icon} ${title}</span></button>
           <div class="hk-menu-grid"></div></div>`).join('');
       if(search)search.after(wrap);else body.prepend(wrap);
     }
     sortItems();
     renderFav();
+    renderCards();
   }
+  // Card counts: what this user can open in each group (staff see fewer).
+  function renderCards(){
+    document.querySelectorAll('#hkMenuCards .hk-menu-card').forEach(c=>{
+      let n=[...document.querySelectorAll(`#hkMenu .hk-menu-sec[data-group="${c.dataset.card}"] .drawer-item`)].filter(b=>!b.classList.contains('hk-staff-hide')).length;
+      c.querySelector('.hk-mc-n').textContent=n;
+      c.hidden=!n;
+    });
+  }
+  function setView(v){
+    let wrap=document.getElementById('hkMenu');if(!wrap)return;
+    wrap.dataset.view=v;
+    wrap.querySelectorAll('.hk-menu-sec[data-group]').forEach(s=>s.classList.toggle('on',s.dataset.group===v));
+    let body=document.querySelector('#drawerNav .drawer-body');if(body)body.scrollTop=0;
+  }
+  window.hkOpenMenuGroup=id=>setView(id);
+  window.hkMenuHome=()=>setView('home');
+  window.hkToggleMenuGroup=id=>setView(id);   // older name
+  // Phone back button: from a group, back to the cards first.
+  window.hkMenuBack=function(){
+    let wrap=document.getElementById('hkMenu');
+    if(wrap&&wrap.dataset.view!=='home'&&!wrap.classList.contains('searching')){setView('home');return true;}
+    return false;
+  };
   function sortItems(){
     let wrap=document.getElementById('hkMenu');if(!wrap)return;
     document.querySelectorAll('#drawerNav .drawer-item').forEach(b=>{
@@ -93,7 +125,9 @@
   function renderFav(){
     let box=document.getElementById('hkMenuFav');if(!box)return;
     let use=store(USE_KEY)||{};
-    let top=Object.entries(use).filter(([k,n])=>n>=2).sort((a,b)=>b[1]-a[1]).map(([k])=>k)
+    let keys=Object.entries(use).filter(([k,n])=>n>=2).sort((a,b)=>b[1]-a[1]).map(([k])=>k);
+    if(!keys.length)keys=DEFAULT_FAV;
+    let top=keys
       .map(k=>document.querySelector(`#hkMenu .hk-menu-grid .drawer-item[data-key="${k}"]`))
       .filter(b=>b&&!b.classList.contains('hk-staff-hide')).slice(0,6);
     let grid=box.querySelector('.hk-menu-grid');
@@ -106,11 +140,6 @@
     });
     box.hidden=!top.length;
   }
-  window.hkToggleMenuGroup=function(id){
-    let sec=document.querySelector(`#hkMenu .hk-menu-sec[data-group="${id}"]`);if(!sec)return;
-    sec.classList.toggle('folded');
-    store(FOLD_KEY,[...document.querySelectorAll('#hkMenu .hk-menu-sec.folded')].map(s=>s.dataset.group));
-  };
   // Count what is opened (the original buttons only; favourites click those).
   document.addEventListener('click',e=>{
     let b=e.target.closest&&e.target.closest('#drawerNav .drawer-item');
@@ -148,10 +177,10 @@
   }
   let origOpenDrawer=window.openDrawer;
   window.openDrawer=function(){
-    try{renderHead();sortItems();renderFav();}catch(e){console.warn('Menu:',e);}
+    try{renderHead();sortItems();renderFav();renderCards();setView('home');let i=document.querySelector('#drawerNav .search-bar input');if(i&&i.value){i.value='';filterDrawerItems('');}}catch(e){console.warn('Menu:',e);}
     return origOpenDrawer.apply(this,arguments);
   };
-  window.hkMenuRefresh=()=>{renderHead();sortItems();renderFav();};
+  window.hkMenuRefresh=()=>{renderHead();sortItems();renderFav();renderCards();};
   let origSync=window.setSyncStatus;
   if(origSync)window.setSyncStatus=function(){let r=origSync.apply(this,arguments);try{renderHead();}catch(e){}return r;};
 
