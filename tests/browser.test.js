@@ -1383,6 +1383,42 @@ test('di hui mazdoori: old total once, every payment and advance adds itself, no
   assert.strictEqual(r.voice,'screen');assert.strictEqual(r.menu,true);
 });
 
+test('main menu in two steps: group cards, open a group, back, search, staff',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    localStorage.removeItem('hk_menu_use');
+    openDrawer();await wait(100);
+    const vis=sel=>[...document.querySelectorAll(sel)].filter(e=>e.offsetParent!==null);
+    let out={view:document.getElementById('hkMenu').dataset.view,
+      cards:vis('#hkMenuCards .hk-menu-card').length,
+      tilesHome:vis('#hkMenu .hk-menu-sec[data-group] .drawer-item').length,
+      fav:vis('#hkMenuFav .drawer-item').map(b=>b.dataset.key),
+      voice:!!vis('.hk-menu-voice').length};
+    document.querySelector('.hk-menu-card[data-card="karigar"]').click();await wait(50);
+    out.inGroup=vis('#hkMenu .hk-menu-sec[data-group] .drawer-item').map(b=>b.dataset.key);
+    out.cardsInGroup=vis('#hkMenuCards .hk-menu-card').length;
+    out.back=hkMenuBack();out.viewAfterBack=document.getElementById('hkMenu').dataset.view;
+    out.backAtHome=hkMenuBack();
+    filterDrawerItems('khata');
+    out.search=vis('#hkMenu .hk-menu-sec[data-group] .drawer-item').length>0&&vis('#hkMenuCards .hk-menu-card').length===0;
+    filterDrawerItems('');
+    hkOpenMenuGroup('paisa');closeDrawer();openDrawer();await wait(50);
+    out.reopen=document.getElementById('hkMenu').dataset.view;
+    staffUsers=[{id:99,name:'Bilal',pin:'1'}];activeUserId=99;updateUserBadge();closeDrawer();openDrawer();await wait(50);
+    out.staffReports=!document.querySelector('.hk-menu-card[data-card="report"]').hidden;
+    activeUserId=null;updateUserBadge();closeDrawer();
+    return out;
+  });
+  assert.strictEqual(r.view,'home');assert.strictEqual(r.cards,7);assert.strictEqual(r.tilesHome,0);
+  assert.deepStrictEqual(r.fav,['tabKhata','tabOrders','openMyPosition','openKarigarPay','tabBankBook','tabInventory']);
+  assert.strictEqual(r.voice,true);
+  assert.ok(r.inGroup.includes('openMazdoori')&&r.inGroup.includes('tabLabour')&&!r.inGroup.includes('tabOrders'),JSON.stringify(r.inGroup));
+  assert.strictEqual(r.cardsInGroup,0);
+  assert.deepStrictEqual([r.back,r.viewAfterBack,r.backAtHome],[true,'home',false]);
+  assert.strictEqual(r.search,true);assert.strictEqual(r.reopen,'home');
+  assert.strictEqual(r.staffReports,false);
+});
+
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));
