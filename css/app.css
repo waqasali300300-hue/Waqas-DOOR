@@ -692,3 +692,12 @@ body.dark-mode .hk-pos-purple{background:#25183f;color:#ddd6fe;}
 body.dark-mode .hk-hpos-g .r{background:#3b1414;color:#fecaca;}
 body.dark-mode .hk-hpos-g .g{background:#0f2e22;color:#a7f3d0;}
 body.dark-mode .hk-hpos-g .b{background:#14233b;color:#bfdbfe;}
+/* ── Di hui Mazdoori ── */
+.hk-mz-mini{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0;}
+.hk-mz-mini div{border:1px solid var(--border);border-radius:10px;padding:7px 8px;}
+.hk-mz-mini small{display:block;font-size:10px;color:var(--gray-500);}
+.hk-mz-mini b{font-size:13px;}
+.hk-mz-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--border);font-size:12px;}
+.hk-mz-row small{display:block;font-size:10px;color:var(--gray-500);}
+.hk-mz-form{margin-top:12px;padding:10px;border:1px dashed var(--border);border-radius:12px;}
+.hk-mz-line{font-size:10.5px;margin-top:4px;color:var(--primary);}

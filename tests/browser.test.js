@@ -1346,6 +1346,43 @@ test('khata card: payment and old khata buttons even when nothing is due',async 
   assert.deepStrictEqual(r,{pay:true,old:true,afterOld:300000,afterPay:200000});
 });
 
+test('di hui mazdoori: old total once, every payment and advance adds itself, nothing counted twice',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    karigars=[{id:7,name:'Rafiq'},{id:8,name:'Akram'}];
+    labours=[{id:21,karigarId:7,date:'2026-11-01',totalCost:30000,paid:0},{id:22,karigarId:8,date:'2026-11-02',totalCost:20000,paid:0}];
+    businessProfile.oldLabour=[];bankTransactions=[];saveAll();renderAll();
+    let out={};
+    // Old: Rafiq 5 lakh, plus a lump sum for everyone 2 lakh.
+    openMazdoori(7);await wait(50);
+    document.getElementById('hkMzAmt').value=500000;saveOldMazdoori();await wait(60);
+    document.getElementById('hkMzKar').value='';document.getElementById('hkMzAmt').value=200000;saveOldMazdoori();await wait(60);
+    out.afterOld=hkMazdooriTotals().all;
+    // Pay Rafiq 10,000 through Karigar Payment.
+    openKarigarPay();await wait(50);
+    document.getElementById('kpAmt_7').value=10000;payKarigar(7);await wait(80);
+    // Advance 5,000 to Akram, then pay Akram using the advance (not counted again).
+    openKarigarPay();await wait(50);
+    document.getElementById('hkAdvKar').value='8';document.getElementById('hkAdvAmt').value=5000;giveKarigarAdvance();await wait(80);
+    document.getElementById('kpAmt_8').value=0;payKarigar(8);await wait(80);
+    let t=hkMazdooriTotals();out.t=[t.all,t.old,t.app];
+    out.rafiq=hkKarigarGiven(7).all;out.akram=hkKarigarGiven(8).all;
+    openMazdoori();await wait(50);
+    out.text=document.getElementById('hkMzB').innerText;
+    switchTab('tabLabour');await wait(80);
+    out.card=document.getElementById('hkMzCard')?.innerText||'';
+    out.voice=hkUnderstand('kul mazdoori kitni di').kind;
+    out.menu=!!document.getElementById('hkMzBtn');
+    return out;
+  });
+  assert.strictEqual(r.afterOld,700000);
+  assert.deepStrictEqual(r.t,[715000,700000,15000]);
+  assert.strictEqual(r.rafiq,510000);assert.strictEqual(r.akram,5000);
+  assert.ok(/Ab tak kul mazdoori di/.test(r.text)&&/7 lakh 15 hazar/.test(r.text)&&/Sab karigar/.test(r.text),r.text);
+  assert.ok(/715,000/.test(r.card),r.card);
+  assert.strictEqual(r.voice,'screen');assert.strictEqual(r.menu,true);
+});
+
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));

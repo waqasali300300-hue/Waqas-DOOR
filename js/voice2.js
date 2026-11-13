@@ -93,6 +93,7 @@
     [['estimate','quotation','تخمینہ','تخمینے'],()=>openQuotationList()],
     [['wasooli','sab ko yaad','وصولی'],()=>openBulkReminders()],
     [['purane gahak','purane customer','پرانے گاہک'],()=>openOldCustomers()],
+    [['di hui mazdoori','kul mazdoori','mazdoori ka hisaab','mazdoori ka hisab','دی ہوئی مزدوری','کل مزدوری','مزدوری کا حساب'],()=>openMazdoori()],
     [['karigar payment','mazdoori','مزدوری'],()=>openKarigarPay()],
     [['hazri','attendance','حاضری'],()=>openAttendanceModal()],
     [['auzaar','machine','اوزار','مشین'],()=>openTools()],
