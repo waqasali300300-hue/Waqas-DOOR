@@ -12,12 +12,12 @@
     ['kaam','🛒','Orders aur Kaam',['tabHome','tabOrders','openQuickPrice','openAlbum','openQuotationList','tabProduction','openWorkshopBoard','openCuttingPicker','openMorning','openDayClose']],
     ['gahak','📒','Gahak aur Wasooli',['tabKhata','tabParties','openBulkReminders','openReminderCenter','openOldCustomers','openStatements','openCatalog','openImport']],
     ['paisa','💰','Paisa',['openMyPosition','tabBankBook','tabExpenses','openBills','openChequeListModal','openLoans','setSalesTarget']],
-    ['karigar','👷','Karigar',['tabLabour','openKarigarPay','openKarigarList','openAttendanceModal','openKarigarReport','openTools']],
+    ['karigar','👷','Karigar',['tabLabour','openMazdoori','openKarigarPay','openKarigarList','openAttendanceModal','openKarigarReport','openTools']],
     ['maal','🪵','Maal aur Rate',['tabInventory','tabPurchases','tabSuppliers','openWoodStockModal','openWoodBuyList','openStockCount','openPriceListModal','openRateChange','openRateListPdf','openRawMaterialCalcModal']],
     ['report','📊','Reports',['tabReports','openProfitReport','openDesignReport','openYearReport','exportExcel','openActivityLog']],
     ['app','⚙️','Settings aur Madad',[]] // everything else
   ];
-  const SHORT={tabHome:'Home',openMorning:'Subah ka Khaka',openDayClose:'Aaj ka Hisaab',openKarigarPay:'Karigar Payment',openWoodBuyList:'Lakri List',
+  const SHORT={tabHome:'Home',openMorning:'Subah ka Khaka',openDayClose:'Aaj ka Hisaab',openKarigarPay:'Karigar Payment',openMazdoori:'Di hui Mazdoori',openWoodBuyList:'Lakri List',
     tabOrders:'Orders',openQuickPrice:'Fauri Qeemat',openAlbum:'Design Album',openQuotationList:'Estimates',tabProduction:'Production',openWorkshopBoard:'Kaam ka Board',openCuttingPicker:'Cutting List',
     tabLabour:'Labour',openKarigarReport:'Karigar Report',tabKhata:'Party Khata',openBulkReminders:'Wasooli Yaad Dahani',tabParties:'Parties',
     openOldCustomers:'Purane Gahak',openImport:'Excel se Parties',tabInventory:'Stock',tabPurchases:'Khareed',tabSuppliers:'Suppliers',
