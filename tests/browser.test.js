@@ -1419,6 +1419,49 @@ test('main menu in two steps: group cards, open a group, back, search, staff',as
   assert.strictEqual(r.staffReports,false);
 });
 
+test('menu: pin by holding, red marks for today, recently opened, search finds people and orders',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    const t=new Date().toISOString().slice(0,10);
+    parties=[{id:1,name:'Aziz Traders',phone:'03001234567',openingBalance:50000},{id:2,name:'Bilal'}];
+    suppliers=[{id:5,name:'Imran Wood',openingBalance:0,payments:[]}];
+    orders=[{id:9,orderNo:'ORD-77',partyId:2,date:'2026-01-01',deliveryDate:'2026-01-05',status:'cutting',orderTotal:1000,payments:[{id:1,amount:1000,date:t}]}];
+    cheques=[{id:3,status:'pending',dueDate:t,amount:5000}];
+    labours=[{id:4,karigarId:7,totalCost:100,paid:0}];karigars=[{id:7,name:'Rafiq'}];saveAll();
+    localStorage.removeItem('hk_menu_pins');localStorage.removeItem('hk_menu_recent');localStorage.removeItem('hk_menu_use');
+    openDrawer();await wait(80);
+    let badge=k=>{let c=document.querySelector(`.hk-menu-card[data-card="${k}"] .hk-mc-alert`);return c.hidden?0:Number(c.textContent);};
+    let out={marks:['kaam','paisa','gahak','karigar','maal'].map(badge)};
+    // Hold "Mahana Bill" (inside Paisa) → pinned on top; hold again → removed.
+    hkOpenMenuGroup('paisa');await wait(30);
+    let tile=document.querySelector('#hkMenu .hk-menu-sec .drawer-item[data-key="openBills"]');
+    tile.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));await wait(700);
+    tile.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));tile.click();await wait(30);
+    out.modalAfterHold=!!document.querySelector('.modal.open');
+    out.favFirst=document.querySelector('#hkMenuFav .drawer-item')?.dataset.key;
+    out.pinMark=document.querySelector('#hkMenuFav .drawer-item').classList.contains('hk-pinned');
+    hkTogglePin('openBills');out.favAfter=document.querySelector('#hkMenuFav .drawer-item')?.dataset.key;
+    // Recently opened.
+    closeDrawer();openPartyLedger(1);closeModal('partyLedgerModal');viewOrderDetail(9);document.querySelectorAll('.modal.open').forEach(m=>closeModal(m.id));
+    openDrawer();await wait(50);
+    out.recent=[...document.querySelectorAll('#hkMenuRecent .hk-chips button')].map(b=>b.textContent.trim());
+    // Search.
+    let res=q=>{filterDrawerItems(q);return [...document.querySelectorAll('#hkMenuFind .hk-find-row b')].map(b=>b.textContent);};
+    out.s1=res('aziz');out.s2=res('imran');out.s3=res('77');out.s4=res('1234567');
+    document.querySelector('#hkMenuFind .hk-find-row').click();await wait(50);
+    out.opened=document.getElementById('partyLedgerModal').classList.contains('open');
+    filterDrawerItems('');closeModal('partyLedgerModal');
+    return out;
+  });
+  assert.deepStrictEqual(r.marks,[1,1,1,1,0]);
+  assert.strictEqual(r.modalAfterHold,false,'holding does not open the item');
+  assert.strictEqual(r.favFirst,'openBills');assert.strictEqual(r.pinMark,true);
+  assert.notStrictEqual(r.favAfter,'openBills');
+  assert.deepStrictEqual(r.recent,['📋 ORD-77 Bilal','📒 Aziz Traders']);
+  assert.deepStrictEqual([r.s1,r.s2,r.s3,r.s4],[['Aziz Traders'],['Imran Wood'],['ORD-77'],['Aziz Traders']]);
+  assert.strictEqual(r.opened,true);
+});
+
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));

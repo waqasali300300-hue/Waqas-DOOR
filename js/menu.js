@@ -35,7 +35,7 @@
     openBusinessCardModal:'Business Card',openReminderCenter:'Payment Reminders',openUserSwitcher:'Staff / Users',openActivityLog:'Activity',
     openApkInfo:'Android App',openDataSafety:'Data ki Hifazat',openFbSetup:'Cloud Setup',openAutoSettings:'Auto System',
     installApp:'App Install',openSettingsModal:'Settings',toggleDarkMode:'Dark / Light'};
-  const USE_KEY='hk_menu_use',FOLD_KEY='hk_menu_folded';
+  const USE_KEY='hk_menu_use',FOLD_KEY='hk_menu_folded',PIN_KEY='hk_menu_pins',RECENT_KEY='hk_menu_recent';
   function store(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k)||'null');localStorage.setItem(k,JSON.stringify(v));}catch(e){return null;}}
   function keyOf(b){
     if(b.dataset.tab)return b.dataset.tab;
@@ -71,9 +71,11 @@
           <button onclick="closeDrawer();openExpenseModal()"><span>🧾</span>Kharcha</button>
           <button onclick="closeDrawer();openPartyModal()"><span>👤</span>Party</button></div>
         ${window.startVoice?`<button class="hk-menu-voice" onclick="closeDrawer();startVoice()"><span class="hk-mv-i">🎤</span><span class="hk-mv-t"><b>Bol kar kholein</b><small>maslan: "Aziz ka khata", "kul hisaab"</small></span></button>`:''}
-        <div class="hk-menu-sec hk-menu-fav" id="hkMenuFav" hidden><div class="hk-menu-title">⭐ Aksar istemal</div><div class="hk-menu-grid"></div></div>
+        <div class="hk-menu-find" id="hkMenuFind"></div>
+        <div class="hk-menu-recent" id="hkMenuRecent"></div>
+        <div class="hk-menu-sec hk-menu-fav" id="hkMenuFav" hidden><div class="hk-menu-title">⭐ Aksar istemal <small class="hk-pin-hint">kisi bhi button ko dabaye rakhein → 📌 upar lag jayega</small></div><div class="hk-menu-grid"></div></div>
         <div class="hk-menu-cards" id="hkMenuCards">${GROUPS.map(([id,icon,title])=>`<button class="hk-menu-card" data-card="${id}" onclick="hkOpenMenuGroup('${id}')">
-          <span class="hk-mc-icon">${icon}</span><span class="hk-mc-text"><b>${title}</b><small>${ABOUT[id]||''}</small></span><span class="hk-mc-n"></span></button>`).join('')}</div>`+
+          <span class="hk-mc-icon">${icon}</span><span class="hk-mc-text"><b>${title}</b><small>${ABOUT[id]||''}</small></span><span class="hk-mc-n"></span><span class="hk-mc-alert" hidden></span></button>`).join('')}</div>`+
         GROUPS.map(([id,icon,title])=>`<div class="hk-menu-sec" data-group="${id}">
           <button class="hk-menu-title" onclick="hkMenuHome()"><span class="hk-menu-back">‹ Wapas</span><span>${icon} ${title}</span></button>
           <div class="hk-menu-grid"></div></div>`).join('');
@@ -82,6 +84,7 @@
     sortItems();
     renderFav();
     renderCards();
+    renderRecent();
   }
   // Card counts: what this user can open in each group (staff see fewer).
   function renderCards(){
@@ -90,6 +93,14 @@
       c.querySelector('.hk-mc-n').textContent=n;
       c.hidden=!n;
     });
+    try{
+      let al=alerts();
+      document.querySelectorAll('#hkMenuCards .hk-menu-card').forEach(c=>{
+        let a=al[c.dataset.card],el=c.querySelector('.hk-mc-alert');
+        el.hidden=!a;if(a){el.textContent=a.n;el.title=a.why;c.querySelector('small').textContent=a.why;}
+        else c.querySelector('small').textContent=ABOUT[c.dataset.card]||'';
+      });
+    }catch(e){console.warn('menu alerts',e);}
   }
   function setView(v){
     let wrap=document.getElementById('hkMenu');if(!wrap)return;
@@ -125,16 +136,18 @@
   function renderFav(){
     let box=document.getElementById('hkMenuFav');if(!box)return;
     let use=store(USE_KEY)||{};
+    let pins=store(PIN_KEY)||[];
     let keys=Object.entries(use).filter(([k,n])=>n>=2).sort((a,b)=>b[1]-a[1]).map(([k])=>k);
     if(!keys.length)keys=DEFAULT_FAV;
+    keys=[...pins,...keys.filter(k=>!pins.includes(k))];
     let top=keys
       .map(k=>document.querySelector(`#hkMenu .hk-menu-grid .drawer-item[data-key="${k}"]`))
-      .filter(b=>b&&!b.classList.contains('hk-staff-hide')).slice(0,6);
+      .filter(b=>b&&!b.classList.contains('hk-staff-hide')).slice(0,Math.max(6,pins.length));
     let grid=box.querySelector('.hk-menu-grid');
     grid.innerHTML='';
     top.forEach(b=>{
       let c=document.createElement('button');
-      c.className='drawer-item hk-fav-item';c.dataset.key=b.dataset.key;c.innerHTML=b.innerHTML;c.title=b.title;
+      c.className='drawer-item hk-fav-item'+(pins.includes(b.dataset.key)?' hk-pinned':'');c.dataset.key=b.dataset.key;c.innerHTML=b.innerHTML;c.title=b.title;
       c.onclick=()=>b.click();
       grid.appendChild(c);
     });
@@ -177,7 +190,7 @@
   }
   let origOpenDrawer=window.openDrawer;
   window.openDrawer=function(){
-    try{renderHead();sortItems();renderFav();renderCards();setView('home');let i=document.querySelector('#drawerNav .search-bar input');if(i&&i.value){i.value='';filterDrawerItems('');}}catch(e){console.warn('Menu:',e);}
+    try{renderHead();sortItems();renderFav();renderCards();renderRecent();setView('home');let i=document.querySelector('#drawerNav .search-bar input');if(i&&i.value){i.value='';filterDrawerItems('');}}catch(e){console.warn('Menu:',e);}
     return origOpenDrawer.apply(this,arguments);
   };
   window.hkMenuRefresh=()=>{renderHead();sortItems();renderFav();renderCards();};
@@ -194,4 +207,90 @@
       }).observe(body,{childList:true,subtree:true});
     },0);
   });
+
+  // ── Red marks on the cards: what needs doing today ──
+  function num(v){return parseFloat(v)||0;}
+  function alerts(){
+    let t=new Date().toISOString().slice(0,10),out={},staff=typeof hkIsStaff==='function'&&hkIsStaff();
+    let open=orders.filter(o=>(o.status||'pending')!=='delivered');
+    let late=open.filter(o=>o.deliveryDate&&o.deliveryDate<t).length,due=open.filter(o=>o.deliveryDate===t).length;
+    if(late+due)out.kaam={n:late+due,why:[late?late+' late':'',due?due+' aaj deni':''].filter(Boolean).join(', ')};
+    if(!staff){
+      let ch=(typeof cheques!=='undefined'?cheques:[]).filter(c=>c.status==='pending'&&c.dueDate&&c.dueDate<=t).length;
+      if(ch)out.paisa={n:ch,why:ch+' cheque aaj / guzar gaye'};
+      let month=new Date(Date.now()-30*864e5).toISOString().slice(0,10);
+      let slow=parties.filter(p=>{
+        if(getPartyBalance(p)<1)return false;
+        let last='';
+        getPartyOrders(p.id).forEach(o=>(o.payments||[]).forEach(x=>{if(String(x.date)>last)last=String(x.date);}));
+        (p.partyPayments||[]).forEach(x=>{if(String(x.date)>last)last=String(x.date);});
+        return !last||last<month;
+      }).length;
+      if(slow)out.gahak={n:slow,why:slow+' se mahine bhar se payment nahi'};
+      let kd=new Set(labours.filter(l=>num(l.totalCost)>num(l.paid)).map(l=>String(l.karigarId))).size;
+      if(kd)out.karigar={n:kd,why:kd+' karigar ka baqaya'};
+    }
+    let short=(window.hkWoodShort?hkWoodShort():[]).filter(r=>r.short>0).length+inventory.filter(i=>num(i.minStock)>0&&num(i.qty)<=num(i.minStock)).length;
+    if(short)out.maal={n:short,why:short+' cheez kam hai'};
+    return out;
+  }
+  window.hkMenuAlerts=alerts;
+
+  // ── Pin: hold any tile for a moment → it stays on top (hold again to remove) ──
+  function togglePin(key){
+    let pins=store(PIN_KEY)||[];
+    let on=pins.includes(key);
+    pins=on?pins.filter(k=>k!==key):[...pins,key];
+    store(PIN_KEY,pins);renderFav();
+    let b=document.querySelector(`#hkMenu .hk-menu-grid .drawer-item[data-key="${key}"]:not(.hk-fav-item)`);
+    showToast((on?'📌 Hata diya: ':'📌 Upar lag gaya: ')+((b&&b.querySelector('.t-label')?.textContent)||key));
+  }
+  window.hkTogglePin=togglePin;
+  let holdT=null,held=false;
+  function tileOf(e){let b=e.target.closest&&e.target.closest('#hkMenu .drawer-item');return b&&b.dataset.key?b:null;}
+  document.addEventListener('pointerdown',e=>{
+    let b=tileOf(e);if(!b)return;held=false;clearTimeout(holdT);
+    holdT=setTimeout(()=>{held=true;togglePin(b.dataset.key);try{navigator.vibrate&&navigator.vibrate(30);}catch(x){}},600);
+  },true);
+  ['pointerup','pointercancel','pointerleave','scroll'].forEach(ev=>document.addEventListener(ev,()=>clearTimeout(holdT),true));
+  document.addEventListener('contextmenu',e=>{if(tileOf(e))e.preventDefault();},true);
+  // A hold must not also open the item.
+  document.addEventListener('click',e=>{if(held&&tileOf(e)){e.preventDefault();e.stopImmediatePropagation();held=false;}},true);
+
+  // ── Recently opened khatas and orders ──
+  function remember(kind,id){
+    let r=(store(RECENT_KEY)||[]).filter(x=>!(x.k===kind&&String(x.id)===String(id)));
+    r.unshift({k:kind,id});store(RECENT_KEY,r.slice(0,6));
+  }
+  [['openPartyLedger','p'],['viewOrderDetail','o'],['openSupplierLedger','s']].forEach(([fn,k])=>{
+    let orig=window[fn];if(!orig)return;
+    window[fn]=function(id){try{remember(k,id);}catch(e){}return orig.apply(this,arguments);};
+  });
+  function itemFor(x){
+    if(x.k==='p'){let p=getPartyById(x.id);return p&&{icon:'📒',name:p.name,go:`openPartyLedger(${p.id})`};}
+    if(x.k==='o'){let o=orders.find(y=>String(y.id)===String(x.id));return o&&{icon:'📋',name:o.orderNo+' '+getPartyName(o.partyId),go:`viewOrderDetail(${o.id})`};}
+    if(x.k==='s'){let s=suppliers.find(y=>String(y.id)===String(x.id));return s&&{icon:'🪵',name:s.name,go:`openSupplierLedger(${s.id})`};}
+  }
+  function renderRecent(){
+    let box=document.getElementById('hkMenuRecent');if(!box)return;
+    let list=(store(RECENT_KEY)||[]).map(itemFor).filter(Boolean).slice(0,5);
+    box.innerHTML=list.length?`<div class="hk-menu-title">🕘 Abhi khole</div><div class="hk-chips">${list.map(x=>`<button onclick="closeDrawer();${x.go}">${x.icon} ${esc(x.name)}</button>`).join('')}</div>`:'';
+  }
+
+  // ── Search also finds customers, suppliers, karigars and orders ──
+  let baseFilter=window.filterDrawerItems;
+  window.filterDrawerItems=function(q){
+    let r=baseFilter.apply(this,arguments);
+    let box=document.getElementById('hkMenuFind');if(!box)return r;
+    q=(q||'').trim().toLowerCase();
+    if(q.length<2){box.innerHTML='';return r;}
+    let hit=x=>String(x.name||'').toLowerCase().includes(q)||String(x.phone||'').replace(/\D/g,'').includes(q.replace(/\D/g,'')||'§');
+    let res=[];
+    parties.filter(hit).slice(0,4).forEach(p=>{let b=getPartyBalance(p);res.push({icon:'📒',name:p.name,sub:b>=1?'baqi '+fmtRs(b):b<=-1?'advance '+fmtRs(-b):'saaf',go:`openPartyLedger(${p.id})`});});
+    suppliers.filter(hit).slice(0,2).forEach(s=>res.push({icon:'🪵',name:s.name,sub:'supplier',go:`openSupplierLedger(${s.id})`}));
+    karigars.filter(hit).slice(0,2).forEach(k=>res.push({icon:'👷',name:k.name,sub:'karigar',go:`openKarigarList();openKarigarLedger(${k.id})`}));
+    orders.filter(o=>String(o.orderNo||'').toLowerCase().includes(q)).slice(0,3).forEach(o=>res.push({icon:'📋',name:o.orderNo,sub:getPartyName(o.partyId)+' · '+fmtRs(o.orderTotal),go:`viewOrderDetail(${o.id})`}));
+    box.innerHTML=res.length?`<div class="hk-menu-title">🔍 Mile</div>${res.map(x=>`<button class="hk-find-row" onclick="closeDrawer();${x.go}"><span>${x.icon}</span><b>${esc(x.name)}</b><small>${esc(x.sub)}</small></button>`).join('')}`:'';
+    return r;
+  };
 })();
