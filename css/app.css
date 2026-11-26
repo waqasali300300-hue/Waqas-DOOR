@@ -759,3 +759,40 @@ body.dark-mode .hk-menu-back{background:#1a2333;border-color:#273246;color:#c2cc
 .hk-find-row span{font-size:17px;}
 .hk-find-row small{color:#7a879a;font-size:10.5px;}
 body.dark-mode .hk-chips button,body.dark-mode .hk-find-row{background:#1a2333;border-color:#273246;color:#dfe6f0;}
+/* ── Simple khata screen ── */
+.hk-k3-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;}
+.hk-k3-tile{border:none;border-radius:14px;padding:10px 8px;text-align:left;font-family:inherit;cursor:pointer;}
+.hk-k3-tile small{display:block;font-size:10px;font-weight:700;}
+.hk-k3-tile b{display:block;font-size:14px;margin-top:2px;word-break:break-word;}
+.hk-k3-tile.lene{background:#fee2e2;color:#7f1d1d;}
+.hk-k3-tile.dene{background:#dbeafe;color:#1e3a8a;}
+.hk-k3-tile.aaye{background:#d1fae5;color:#065f46;}
+.hk-k3-bar{grid-column:1/-1;display:flex;gap:6px;align-items:center;}
+.hk-k3-bar .form-input{flex:1;min-width:0;}
+.hk-k3-chips{grid-column:1/-1;display:flex;gap:6px;overflow-x:auto;}
+.hk-k3-chips button{flex-shrink:0;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:999px;padding:6px 12px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;}
+.hk-k3-chips button span{opacity:.6;margin-left:2px;}
+.hk-k3-chips button.on{background:var(--primary);border-color:var(--primary);color:#fff;}
+.hk-k3-sup{grid-column:1/-1;border:1px dashed #93c5fd;background:none;color:#1e3a8a;border-radius:12px;padding:8px;font:inherit;font-size:11.5px;text-align:left;cursor:pointer;}
+.hk-k3-card{border-left:4px solid #cbd5e1;}
+.hk-k3-card.lene{border-left-color:#dc2626;}
+.hk-k3-card.dene{border-left-color:#2563eb;}
+.hk-k3-card.saaf{border-left-color:#16a34a;}
+.hk-k3-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.hk-k3-name{font-size:14px;}
+.hk-k3-top small{display:block;font-size:10.5px;color:var(--gray-500);}
+.hk-k3-status{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;padding:9px 12px;border-radius:12px;font-size:12.5px;font-weight:700;}
+.hk-k3-status b{font-size:17px;}
+.hk-k3-status.lene{background:#fee2e2;color:#991b1b;}
+.hk-k3-status.dene{background:#dbeafe;color:#1e3a8a;}
+.hk-k3-status.saaf{background:#d1fae5;color:#065f46;}
+.hk-k3-meta{font-size:10.5px;color:var(--gray-500);margin-top:6px;}
+.hk-k3-btns{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;}
+.hk-k3-pay{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);}
+.hk-k3-pay b.in{color:#15803d;}
+.hk-k3-pay b.out{color:#b91c1c;}
+.hk-k3-pay small{display:block;font-size:10.5px;color:var(--gray-500);}
+.hk-k3-edit{margin-left:6px;}
+body.dark-mode .hk-k3-tile.lene,body.dark-mode .hk-k3-status.lene{background:#3b1414;color:#fecaca;}
+body.dark-mode .hk-k3-tile.dene,body.dark-mode .hk-k3-status.dene{background:#14233b;color:#bfdbfe;}
+body.dark-mode .hk-k3-tile.aaye,body.dark-mode .hk-k3-status.saaf{background:#0f2e22;color:#a7f3d0;}

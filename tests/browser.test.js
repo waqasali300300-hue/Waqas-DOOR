@@ -1462,6 +1462,50 @@ test('menu: pin by holding, red marks for today, recently opened, search finds p
   assert.strictEqual(r.opened,true);
 });
 
+test('simple khata: lene/dene tiles and filters, search, party edit, every payment editable',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Aziz',phone:'0300-1112223',openingBalance:100000},{id:2,name:'Bilal',openingBalance:-30000},{id:3,name:'Saeed',openingBalance:0}];
+    orders=[{id:9,orderNo:'ORD-1',partyId:1,date:'2026-11-01',orderTotal:50000,payments:[]}];bankTransactions=[];saveAll();
+    switchTab('tabKhata');await wait(80);
+    let cards=()=>[...document.querySelectorAll('#khataContent .hk-k3-card .hk-k3-name')].map(b=>b.textContent);
+    let out={tiles:[...document.querySelectorAll('.hk-k3-tile b')].map(b=>b.textContent),all:cards()};
+    hkKhataFilter('lene');out.lene=cards();hkKhataFilter('dene');out.dene=cards();hkKhataFilter('saaf');out.saaf=cards();hkKhataFilter('all');
+    hkKhataSearch('111');out.byPhone=cards();hkKhataSearch('');
+    out.status=document.querySelector('.hk-k3-card .hk-k3-status').innerText.replace(/\s+/g,' ');
+    // Party edit from the card.
+    document.querySelector('.hk-k3-card [onclick^="openPartyModal"]').click();await wait(50);
+    document.getElementById('partyName').value='Aziz Bhai';saveParty();await wait(80);
+    out.renamed=parties[0].name;
+    // Payment, then edit it inside the khata (cash book follows), then delete.
+    openReceivePaymentModal(1);await wait(30);document.getElementById('payAmount').value=20000;addPartyPayment();await wait(80);
+    document.querySelectorAll('.modal.open').forEach(m=>closeModal(m.id));
+    openPartyLedger(1);await wait(80);
+    out.payRows=document.querySelectorAll('#hkK3Pays .hk-k3-pay').length;
+    out.heads=[...document.querySelectorAll('#partyLedgerModalBody thead th')].map(th=>th.textContent).join('|');
+    document.querySelector('#hkK3Pays [onclick^="hkEditPayment"]').click();await wait(40);
+    document.getElementById('hkPeEAmt').value=25000;document.getElementById('hkPeEAcc').value='HBL';
+    document.querySelector('#hkPayEditB .btn-primary').click();await wait(80);
+    out.afterEdit=getPartyBalance(parties[0]);
+    out.tx=bankTransactions.map(t=>t.account+':'+t.amount);
+    document.querySelector('#hkK3Pays [onclick^="hkDeletePayment"]').click();await wait(40);
+    document.querySelector('#confirmModal .btn-danger, #confirmModal [onclick*="confirm"]')?.click();await wait(80);
+    out.afterDel=[getPartyBalance(parties[0]),bankTransactions.length];
+    return out;
+  });
+  assert.deepStrictEqual(r.tiles,['Rs.150,000','Rs.30,000',r.tiles[2]]);
+  assert.deepStrictEqual(r.all,['Aziz','Bilal','Saeed']);
+  assert.deepStrictEqual([r.lene,r.dene,r.saaf],[['Aziz'],['Bilal'],['Saeed']]);
+  assert.deepStrictEqual(r.byPhone,['Aziz']);
+  assert.ok(/Aap ne lene hain Rs.150,000/.test(r.status),r.status);
+  assert.strictEqual(r.renamed,'Aziz Bhai');
+  assert.strictEqual(r.payRows,1);
+  assert.ok(/Bill \/ Diye/.test(r.heads)&&/Aaye/.test(r.heads),r.heads);
+  assert.strictEqual(r.afterEdit,125000);
+  assert.deepStrictEqual(r.tx,['HBL:25000']);
+  assert.deepStrictEqual(r.afterDel,[150000,0]);
+});
+
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));
