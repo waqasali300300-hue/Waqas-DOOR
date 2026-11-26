@@ -1383,6 +1383,129 @@ test('di hui mazdoori: old total once, every payment and advance adds itself, no
   assert.strictEqual(r.voice,'screen');assert.strictEqual(r.menu,true);
 });
 
+test('main menu in two steps: group cards, open a group, back, search, staff',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    localStorage.removeItem('hk_menu_use');
+    openDrawer();await wait(100);
+    const vis=sel=>[...document.querySelectorAll(sel)].filter(e=>e.offsetParent!==null);
+    let out={view:document.getElementById('hkMenu').dataset.view,
+      cards:vis('#hkMenuCards .hk-menu-card').length,
+      tilesHome:vis('#hkMenu .hk-menu-sec[data-group] .drawer-item').length,
+      fav:vis('#hkMenuFav .drawer-item').map(b=>b.dataset.key),
+      voice:!!vis('.hk-menu-voice').length};
+    document.querySelector('.hk-menu-card[data-card="karigar"]').click();await wait(50);
+    out.inGroup=vis('#hkMenu .hk-menu-sec[data-group] .drawer-item').map(b=>b.dataset.key);
+    out.cardsInGroup=vis('#hkMenuCards .hk-menu-card').length;
+    out.back=hkMenuBack();out.viewAfterBack=document.getElementById('hkMenu').dataset.view;
+    out.backAtHome=hkMenuBack();
+    filterDrawerItems('khata');
+    out.search=vis('#hkMenu .hk-menu-sec[data-group] .drawer-item').length>0&&vis('#hkMenuCards .hk-menu-card').length===0;
+    filterDrawerItems('');
+    hkOpenMenuGroup('paisa');closeDrawer();openDrawer();await wait(50);
+    out.reopen=document.getElementById('hkMenu').dataset.view;
+    staffUsers=[{id:99,name:'Bilal',pin:'1'}];activeUserId=99;updateUserBadge();closeDrawer();openDrawer();await wait(50);
+    out.staffReports=!document.querySelector('.hk-menu-card[data-card="report"]').hidden;
+    activeUserId=null;updateUserBadge();closeDrawer();
+    return out;
+  });
+  assert.strictEqual(r.view,'home');assert.strictEqual(r.cards,7);assert.strictEqual(r.tilesHome,0);
+  assert.deepStrictEqual(r.fav,['tabKhata','tabOrders','openMyPosition','openKarigarPay','tabBankBook','tabInventory']);
+  assert.strictEqual(r.voice,true);
+  assert.ok(r.inGroup.includes('openMazdoori')&&r.inGroup.includes('tabLabour')&&!r.inGroup.includes('tabOrders'),JSON.stringify(r.inGroup));
+  assert.strictEqual(r.cardsInGroup,0);
+  assert.deepStrictEqual([r.back,r.viewAfterBack,r.backAtHome],[true,'home',false]);
+  assert.strictEqual(r.search,true);assert.strictEqual(r.reopen,'home');
+  assert.strictEqual(r.staffReports,false);
+});
+
+test('menu: pin by holding, red marks for today, recently opened, search finds people and orders',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    const t=new Date().toISOString().slice(0,10);
+    parties=[{id:1,name:'Aziz Traders',phone:'03001234567',openingBalance:50000},{id:2,name:'Bilal'}];
+    suppliers=[{id:5,name:'Imran Wood',openingBalance:0,payments:[]}];
+    orders=[{id:9,orderNo:'ORD-77',partyId:2,date:'2026-01-01',deliveryDate:'2026-01-05',status:'cutting',orderTotal:1000,payments:[{id:1,amount:1000,date:t}]}];
+    cheques=[{id:3,status:'pending',dueDate:t,amount:5000}];
+    labours=[{id:4,karigarId:7,totalCost:100,paid:0}];karigars=[{id:7,name:'Rafiq'}];saveAll();
+    localStorage.removeItem('hk_menu_pins');localStorage.removeItem('hk_menu_recent');localStorage.removeItem('hk_menu_use');
+    openDrawer();await wait(80);
+    let badge=k=>{let c=document.querySelector(`.hk-menu-card[data-card="${k}"] .hk-mc-alert`);return c.hidden?0:Number(c.textContent);};
+    let out={marks:['kaam','paisa','gahak','karigar','maal'].map(badge)};
+    // Hold "Mahana Bill" (inside Paisa) → pinned on top; hold again → removed.
+    hkOpenMenuGroup('paisa');await wait(30);
+    let tile=document.querySelector('#hkMenu .hk-menu-sec .drawer-item[data-key="openBills"]');
+    tile.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));await wait(700);
+    tile.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));tile.click();await wait(30);
+    out.modalAfterHold=!!document.querySelector('.modal.open');
+    out.favFirst=document.querySelector('#hkMenuFav .drawer-item')?.dataset.key;
+    out.pinMark=document.querySelector('#hkMenuFav .drawer-item').classList.contains('hk-pinned');
+    hkTogglePin('openBills');out.favAfter=document.querySelector('#hkMenuFav .drawer-item')?.dataset.key;
+    // Recently opened.
+    closeDrawer();openPartyLedger(1);closeModal('partyLedgerModal');viewOrderDetail(9);document.querySelectorAll('.modal.open').forEach(m=>closeModal(m.id));
+    openDrawer();await wait(50);
+    out.recent=[...document.querySelectorAll('#hkMenuRecent .hk-chips button')].map(b=>b.textContent.trim());
+    // Search.
+    let res=q=>{filterDrawerItems(q);return [...document.querySelectorAll('#hkMenuFind .hk-find-row b')].map(b=>b.textContent);};
+    out.s1=res('aziz');out.s2=res('imran');out.s3=res('77');out.s4=res('1234567');
+    document.querySelector('#hkMenuFind .hk-find-row').click();await wait(50);
+    out.opened=document.getElementById('partyLedgerModal').classList.contains('open');
+    filterDrawerItems('');closeModal('partyLedgerModal');
+    return out;
+  });
+  assert.deepStrictEqual(r.marks,[1,1,1,1,0]);
+  assert.strictEqual(r.modalAfterHold,false,'holding does not open the item');
+  assert.strictEqual(r.favFirst,'openBills');assert.strictEqual(r.pinMark,true);
+  assert.notStrictEqual(r.favAfter,'openBills');
+  assert.deepStrictEqual(r.recent,['📋 ORD-77 Bilal','📒 Aziz Traders']);
+  assert.deepStrictEqual([r.s1,r.s2,r.s3,r.s4],[['Aziz Traders'],['Imran Wood'],['ORD-77'],['Aziz Traders']]);
+  assert.strictEqual(r.opened,true);
+});
+
+test('simple khata: lene/dene tiles and filters, search, party edit, every payment editable',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    parties=[{id:1,name:'Aziz',phone:'0300-1112223',openingBalance:100000},{id:2,name:'Bilal',openingBalance:-30000},{id:3,name:'Saeed',openingBalance:0}];
+    orders=[{id:9,orderNo:'ORD-1',partyId:1,date:'2026-11-01',orderTotal:50000,payments:[]}];bankTransactions=[];saveAll();
+    switchTab('tabKhata');await wait(80);
+    let cards=()=>[...document.querySelectorAll('#khataContent .hk-k3-card .hk-k3-name')].map(b=>b.textContent);
+    let out={tiles:[...document.querySelectorAll('.hk-k3-tile b')].map(b=>b.textContent),all:cards()};
+    hkKhataFilter('lene');out.lene=cards();hkKhataFilter('dene');out.dene=cards();hkKhataFilter('saaf');out.saaf=cards();hkKhataFilter('all');
+    hkKhataSearch('111');out.byPhone=cards();hkKhataSearch('');
+    out.status=document.querySelector('.hk-k3-card .hk-k3-status').innerText.replace(/\s+/g,' ');
+    // Party edit from the card.
+    document.querySelector('.hk-k3-card [onclick^="openPartyModal"]').click();await wait(50);
+    document.getElementById('partyName').value='Aziz Bhai';saveParty();await wait(80);
+    out.renamed=parties[0].name;
+    // Payment, then edit it inside the khata (cash book follows), then delete.
+    openReceivePaymentModal(1);await wait(30);document.getElementById('payAmount').value=20000;addPartyPayment();await wait(80);
+    document.querySelectorAll('.modal.open').forEach(m=>closeModal(m.id));
+    openPartyLedger(1);await wait(80);
+    out.payRows=document.querySelectorAll('#hkK3Pays .hk-k3-pay').length;
+    out.heads=[...document.querySelectorAll('#partyLedgerModalBody thead th')].map(th=>th.textContent).join('|');
+    document.querySelector('#hkK3Pays [onclick^="hkEditPayment"]').click();await wait(40);
+    document.getElementById('hkPeEAmt').value=25000;document.getElementById('hkPeEAcc').value='HBL';
+    document.querySelector('#hkPayEditB .btn-primary').click();await wait(80);
+    out.afterEdit=getPartyBalance(parties[0]);
+    out.tx=bankTransactions.map(t=>t.account+':'+t.amount);
+    document.querySelector('#hkK3Pays [onclick^="hkDeletePayment"]').click();await wait(40);
+    document.querySelector('#confirmModal .btn-danger, #confirmModal [onclick*="confirm"]')?.click();await wait(80);
+    out.afterDel=[getPartyBalance(parties[0]),bankTransactions.length];
+    return out;
+  });
+  assert.deepStrictEqual(r.tiles,['Rs.150,000','Rs.30,000',r.tiles[2]]);
+  assert.deepStrictEqual(r.all,['Aziz','Bilal','Saeed']);
+  assert.deepStrictEqual([r.lene,r.dene,r.saaf],[['Aziz'],['Bilal'],['Saeed']]);
+  assert.deepStrictEqual(r.byPhone,['Aziz']);
+  assert.ok(/Aap ne lene hain Rs.150,000/.test(r.status),r.status);
+  assert.strictEqual(r.renamed,'Aziz Bhai');
+  assert.strictEqual(r.payRows,1);
+  assert.ok(/Bill \/ Diye/.test(r.heads)&&/Aaye/.test(r.heads),r.heads);
+  assert.strictEqual(r.afterEdit,125000);
+  assert.deepStrictEqual(r.tx,['HBL:25000']);
+  assert.deepStrictEqual(r.afterDel,[150000,0]);
+});
+
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{
   const r=await page.evaluate(async()=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));

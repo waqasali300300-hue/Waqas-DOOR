@@ -151,7 +151,7 @@
       return;
     }
     if(document.getElementById('fbSetupOverlay')?.classList.contains('open')){document.getElementById('fbSetupOverlay').classList.remove('open');return;}
-    if(document.getElementById('drawerNav')?.classList.contains('open')){closeDrawer();return;}
+    if(document.getElementById('drawerNav')?.classList.contains('open')){if(window.hkMenuBack&&hkMenuBack())return;closeDrawer();return;}
     let active=document.querySelector('.tab.active');
     if(active&&active.id!=='tabHome'){switchTab('tabHome');return;}
     let a=cap().App;
