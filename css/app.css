@@ -53,7 +53,7 @@ h1,h2,h3,.logo-text h1,.modal-head,.card-head,.tab-pill,.door-label{font-family:
 .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:currentColor;opacity:.55;}
 .stat-card.blue{color:var(--accent-light);}.stat-card.gold{color:var(--gold);}.stat-card.green{color:var(--green-700);}.stat-card.red{color:var(--red);}.stat-card.orange{color:#d97706;}.stat-card.purple{color:#7c3aed;}.stat-card.teal{color:#0d9488;}
 .stat-card:hover{transform:translateY(-3px);box-shadow:var(--shadow);}
-.stat-card .num{font-size:14px;font-weight:800;letter-spacing:-0.4px;word-break:break-word;overflow-wrap:anywhere;line-height:1.15;}
+.stat-card .num{font-size:14px;font-weight:800;letter-spacing:-0.4px;white-space:nowrap;line-height:1.15;}
 .stat-card .lbl{font-size:7px;color:var(--gray-500);text-transform:uppercase;margin-top:2px;letter-spacing:0.8px;font-weight:600;}
 .stat-card .icon{font-size:18px;display:block;margin-bottom:2px;}
 .stat-card.blue .num{color:var(--accent);}
@@ -796,3 +796,6 @@ body.dark-mode .hk-chips button,body.dark-mode .hk-find-row{background:#1a2333;b
 body.dark-mode .hk-k3-tile.lene,body.dark-mode .hk-k3-status.lene{background:#3b1414;color:#fecaca;}
 body.dark-mode .hk-k3-tile.dene,body.dark-mode .hk-k3-status.dene{background:#14233b;color:#bfdbfe;}
 body.dark-mode .hk-k3-tile.aaye,body.dark-mode .hk-k3-status.saaf{background:#0f2e22;color:#a7f3d0;}
+/* Parties list balance line */
+.hk-pl-line{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:6px;font-size:11.5px;font-weight:700;}
+.hk-pl-line.lene{color:#b91c1c;}.hk-pl-line.dene{color:#1d4ed8;}.hk-pl-line.saaf{color:#15803d;}

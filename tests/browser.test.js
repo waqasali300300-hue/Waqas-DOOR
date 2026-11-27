@@ -1315,7 +1315,7 @@ test('easy money: one Paisa Entry form for all four kinds, home card, voice with
   });
   assert.ok(/Dena/.test(r.home)&&/2.5 cr/.test(r.home)&&/30 lakh/.test(r.home),'home:'+r.home);
   assert.strictEqual(r.homeBtn,'openPaisaEntry()');
-  assert.ok(/Aziz ne dene: Rs.2,500,000/.test(r.after),r.after);
+  assert.ok(/Aziz ne dene: Rs.25,00,000/.test(r.after),r.after);
   assert.strictEqual(r.aziz,2500000);assert.strictEqual(r.hbl,500000);
   assert.strictEqual(r.imran,24800000);
   assert.deepStrictEqual(r.lag,[1500000,23800000]);
@@ -1379,7 +1379,7 @@ test('di hui mazdoori: old total once, every payment and advance adds itself, no
   assert.deepStrictEqual(r.t,[715000,700000,15000]);
   assert.strictEqual(r.rafiq,510000);assert.strictEqual(r.akram,5000);
   assert.ok(/Ab tak kul mazdoori di/.test(r.text)&&/7 lakh 15 hazar/.test(r.text)&&/Sab karigar/.test(r.text),r.text);
-  assert.ok(/715,000/.test(r.card),r.card);
+  assert.ok(/7,15,000/.test(r.card),r.card);
   assert.strictEqual(r.voice,'screen');assert.strictEqual(r.menu,true);
 });
 
@@ -1493,17 +1493,42 @@ test('simple khata: lene/dene tiles and filters, search, party edit, every payme
     out.afterDel=[getPartyBalance(parties[0]),bankTransactions.length];
     return out;
   });
-  assert.deepStrictEqual(r.tiles,['Rs.150,000','Rs.30,000',r.tiles[2]]);
+  assert.deepStrictEqual(r.tiles,['Rs.1,50,000','Rs.30,000',r.tiles[2]]);
   assert.deepStrictEqual(r.all,['Aziz','Bilal','Saeed']);
   assert.deepStrictEqual([r.lene,r.dene,r.saaf],[['Aziz'],['Bilal'],['Saeed']]);
   assert.deepStrictEqual(r.byPhone,['Aziz']);
-  assert.ok(/Aap ne lene hain Rs.150,000/.test(r.status),r.status);
+  assert.ok(/Aap ne lene hain Rs.1,50,000/.test(r.status),r.status);
   assert.strictEqual(r.renamed,'Aziz Bhai');
   assert.strictEqual(r.payRows,1);
   assert.ok(/Bill \/ Diye/.test(r.heads)&&/Aaye/.test(r.heads),r.heads);
   assert.strictEqual(r.afterEdit,125000);
   assert.deepStrictEqual(r.tx,['HBL:25000']);
   assert.deepStrictEqual(r.afterDel,[150000,0]);
+});
+
+test('screens read right: lakh grouping, big numbers on one line, delivery wording, advance not a bill, party balance',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    let d=new Date().toISOString().slice(0,10);
+    parties=[{id:1,name:'Haleem',openingBalance:2350000},{id:2,name:'Bilal',openingBalance:-30000}];
+    orders=[{id:11,orderNo:'ORD-1',partyId:1,date:d,deliveryDate:d,orderTotal:155000,payments:[],status:'cutting'}];
+    labours=[{id:30,karigarId:7,orderId:11,totalCost:300000,paid:0,date:d}];karigars=[{id:7,name:'Rafiq'}];
+    bankTransactions=[{id:1,type:'deposit',account:'Cash',amount:12500000,date:d}];saveAll();renderAll();
+    let out={fmt:[fmtRs(25000000),fmtRs(155000),fmtRs(-5000),fmtRs(999)]};
+    out.attention=document.getElementById('hmAttention').innerText;
+    switchTab('tabBankBook');await wait(120);
+    let n=document.getElementById('bankTotalCash');out.oneLine=n.getBoundingClientRect().height<30&&n.scrollWidth<=n.clientWidth+1;
+    switchTab('tabKhata');await wait(80);
+    out.bilal=[...document.querySelectorAll('.hk-k3-card')].find(c=>/Bilal/.test(c.innerText)).querySelector('.hk-k3-meta').innerText;
+    switchTab('tabParties');await wait(80);
+    out.parties=[...document.querySelectorAll('#partiesList .hk-pl-line span')].map(x=>x.textContent);
+    return out;
+  });
+  assert.deepStrictEqual(r.fmt,['Rs.2,50,00,000','Rs.1,55,000','-Rs.5,000','Rs.999']);
+  assert.ok(/Delivery: 1 aaj — ORD-1/.test(r.attention),r.attention);
+  assert.strictEqual(r.oneLine,true);
+  assert.ok(/Pehle se aap ke zimme Rs.30,000/.test(r.bilal)&&/Kul bill Rs.0/.test(r.bilal),r.bilal);
+  assert.deepStrictEqual(r.parties,['📥 Lene hain Rs.25,05,000','📤 Dene hain Rs.30,000']);
 });
 
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{

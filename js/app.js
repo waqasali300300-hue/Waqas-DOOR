@@ -500,7 +500,7 @@ function updateConnectionStatus(){
 window.addEventListener('online',()=>{updateConnectionStatus();if(cloudEnabled)cloudSave();});
 window.addEventListener('offline',updateConnectionStatus);
 function esc(s){if(!s)return'';return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
-function fmtRs(n){return (businessProfile?.currency||'Rs.')+(Math.round(n||0)).toLocaleString();}
+function fmtRs(n){let v=Math.round(n||0);return (v<0?'-':'')+(businessProfile?.currency||'Rs.')+Math.abs(v).toLocaleString('en-IN');}
 function getPartyName(id){return parties.find(p=>p.id==id)?.name||'Unknown';}
 function getPartyById(id){return parties.find(p=>p.id==id);}
 function getFullAddress(p){if(!p)return'';return [p.address,p.area].filter(Boolean).join(', ');}
