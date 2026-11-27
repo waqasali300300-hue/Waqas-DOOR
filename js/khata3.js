@@ -68,7 +68,7 @@
     if(!shown.length){content.innerHTML=`<div class="empty-state"><div class="e-icon">📒</div><p>${parties.length?'Is mein koi party nahi':'Abhi koi party nahi — "➕ Party" dabayein'}</p></div>`;return;}
     content.innerHTML=shown.map(({p,b})=>{
       let s=status(b),os=getPartyOrders(p.id);
-      let bill=num(p.openingBalance)+os.reduce((t,o)=>t+num(o.orderTotal),0)+((p.oldEntries)||[]).reduce((t,e)=>t+num(e.debit),0);
+      let bill=Math.max(0,num(p.openingBalance))+os.reduce((t,o)=>t+num(o.orderTotal),0)+((p.oldEntries)||[]).reduce((t,e)=>t+num(e.debit),0);
       let got=os.reduce((t,o)=>t+getOrderTotalPaid(o),0)+(p.partyPayments||[]).reduce((t,x)=>t+num(x.amount),0);
       let last=lastIn(p);
       return `<div class="khata-card hk-k3-card ${s.cls}">
@@ -76,7 +76,7 @@
           <button class="btn btn-outline btn-xs" onclick="openPartyModal(${p.id})">✏️ Edit</button></div>
         <div class="hk-k3-status ${s.cls}"><span>${s.icon} ${s.text}</span>${s.amt?`<b>${fmtRs(s.amt)}</b>`:''}</div>
         ${s.amt>=1e5?`<div class="hk-k2-w" style="text-align:right;">${words(s.amt)}</div>`:''}
-        <div class="hk-k3-meta">Kul bill ${fmtRs(bill)} · Aaye ${fmtRs(got)} · ${os.length} order${last?` · Akhri payment ${esc(last)} (${daysAgo(last)})`:''}</div>
+        <div class="hk-k3-meta">${num(p.openingBalance)<0?`Pehle se aap ke zimme ${fmtRs(-num(p.openingBalance))} · `:''}Kul bill ${fmtRs(bill)} · Aaye ${fmtRs(got)} · ${os.length} order${last?` · Akhri payment ${esc(last)} (${daysAgo(last)})`:''}</div>
         <div class="hk-k3-btns">
           <button class="btn btn-success btn-xs" onclick="openReceivePaymentModal(${p.id})">💵 Payment Aayi</button>
           <button class="btn btn-primary btn-xs" onclick="openPartyLedger(${p.id})">📖 Khata</button>

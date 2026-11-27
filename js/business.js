@@ -190,7 +190,12 @@
     let late=orders.filter(o=>deliveryInfo(o)?.cls==='late');
     let due=orders.filter(o=>deliveryInfo(o)?.cls==='due');
     if(late.length)out.push({icon:'⏰',tone:'bad',text:`${late.length} order delivery mein late — ${late.map(o=>o.orderNo).slice(0,3).join(', ')}`,go:"switchTab('tabProduction')"});
-    if(due.length)out.push({icon:'🚚',tone:'warn',text:`${due.length} order ki delivery 2 din mein — ${due.map(o=>o.orderNo).slice(0,3).join(', ')}`,go:"switchTab('tabProduction')"});
+    if(due.length){
+      let t0=new Date(today()),days=o=>Math.round((new Date(o.deliveryDate)-t0)/864e5);
+      let n0=due.filter(o=>days(o)<=0).length,n1=due.filter(o=>days(o)===1).length,n2=due.length-n0-n1;
+      let when=[n0?n0+' aaj':'',n1?n1+' kal':'',n2?n2+' 2 din mein':''].filter(Boolean).join(', ');
+      out.push({icon:'🚚',tone:'warn',text:`Delivery: ${when} — ${due.map(o=>o.orderNo).slice(0,3).join(', ')}`,go:"switchTab('tabProduction')"});
+    }
     let supDue=suppliers.reduce((t,s)=>t+Math.max(0,supplierBalance(s)),0);
     if(supDue>0)out.push({icon:'🏪',tone:'info',text:'Suppliers ko dena hai',amt:supDue,go:"switchTab('tabSuppliers')"});
     let short=woodShortfall().filter(r=>r.short>0);
