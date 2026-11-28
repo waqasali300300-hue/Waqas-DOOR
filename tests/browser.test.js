@@ -1213,7 +1213,7 @@ test('big khata: old balance either way, orders done and running, payment in and
   assert.strictEqual(r.words,'2 crore 35 lakh 40 hazar');
   assert.deepStrictEqual(r.s,[23540000,500000,300000,0,24040000,24340000]);
   assert.ok(/Imran ne aap ko dene hain/.test(r.card)&&/2,40,40,000/.test(r.card),r.card);
-  assert.ok(/Ban rahe orders ke baad/.test(r.card)&&/2,43,40,000/.test(r.card));
+  assert.ok(/Kul baqaya/.test(r.card)&&/2,43,40,000/.test(r.card)&&/abhi ban rahe hain/.test(r.card)&&/2,40,40,000/.test(r.card),r.card);
   assert.strictEqual(r.afterPay,23740000);assert.strictEqual(r.order1Paid,500000);
   assert.ok(/6,00,000/.test(r.cardAfter));
   assert.strictEqual(r.afterGive,23840000);
@@ -1293,7 +1293,7 @@ test('easy money: one Paisa Entry form for all four kinds, home card, voice with
     document.querySelectorAll('.modal.open').forEach(m=>closeModal(m.id));
     // 2. Supplier ko diye (chips: +1 lakh twice)
     openPaisaEntry('out',null,5);await wait(50);
-    document.querySelectorAll('.hk-pe-chips button')[1].click();document.querySelectorAll('.hk-pe-chips button')[1].click();
+    document.querySelectorAll('#hkPeB .hk-pe-chips button')[1].click();document.querySelectorAll('#hkPeB .hk-pe-chips button')[1].click();
     savePaisaEntry();await wait(100);
     out.imran=hkSupplierBalance(suppliers[0]);
     // 3. Lagwayi
@@ -1529,6 +1529,35 @@ test('screens read right: lakh grouping, big numbers on one line, delivery wordi
   assert.strictEqual(r.oneLine,true);
   assert.ok(/Pehle se aap ke zimme Rs.30,000/.test(r.bilal)&&/Kul bill Rs.0/.test(r.bilal),r.bilal);
   assert.deepStrictEqual(r.parties,['📥 Lene hain Rs.25,05,000','📤 Dene hain Rs.30,000']);
+});
+
+test('phone khata rows, payment form starts empty with quick amounts, one balance in the khata',async page=>{
+  const r=await page.evaluate(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    let d=new Date().toISOString().slice(0,10);
+    parties=[{id:1,name:'Haleem',openingBalance:2350000}];
+    orders=[{id:11,orderNo:'ORD-1',partyId:1,date:d,orderTotal:155000,payments:[{id:1,amount:10000,date:d,method:'Cash'}],status:'cutting'}];
+    suppliers=[{id:9,name:'Imran',openingBalance:25000000,payments:[]}];bankTransactions=[];saveAll();
+    openPartyLedger(1);await wait(80);
+    let out={rows:document.querySelectorAll('#partyLedgerModalBody .hk-lrow').length,
+      tableHidden:document.querySelector('#partyLedgerModalBody table').offsetParent===null,
+      firstRow:document.querySelector('#partyLedgerModalBody .hk-lrow')?.innerText.replace(/\s+/g,' '),
+      card:document.getElementById('hkK2').innerText.replace(/\s+/g,' '),
+      wide:document.querySelector('#partyLedgerModal .modal-box').scrollWidth<=document.querySelector('#partyLedgerModal .modal-box').clientWidth+1};
+    closeModal('partyLedgerModal');
+    openSupplierLedger(9);await wait(80);out.supRows=document.querySelectorAll('#hkSupLedgerModalBody .hk-lrow').length;closeModal('hkSupLedgerModal');
+    openReceivePaymentModal(1);await wait(50);
+    out.empty=document.getElementById('payAmount').value;
+    document.querySelector('#paymentModalBody .hk-pe-chips button').click();
+    out.full=document.getElementById('payAmount').value;out.after=document.getElementById('hkPayAfter').innerText;
+    return out;
+  });
+  assert.strictEqual(r.rows,3);assert.strictEqual(r.tableHidden,true);
+  assert.ok(/Opening Balance/.test(r.firstRow)&&/Baqi Rs.23,50,000/.test(r.firstRow),r.firstRow);
+  assert.ok(/Kul baqaya/.test(r.card)&&/24,95,000/.test(r.card)&&/1,55,000 ke 1 order abhi ban rahe hain/.test(r.card),r.card);
+  assert.strictEqual(r.wide,true);assert.strictEqual(r.supRows,1);
+  assert.strictEqual(r.empty,'');assert.strictEqual(r.full,'2495000');
+  assert.ok(/hisaab saaf/.test(r.after),r.after);
 });
 
 test('voice order: sizes spoken one after another fill the order form, nothing saved',async page=>{

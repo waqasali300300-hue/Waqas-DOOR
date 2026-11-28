@@ -68,8 +68,8 @@
       ${row('🛠 Orders ban rahe ('+s.runList.length+')',s.running,'+ ','hk-k2-run')}
       ${row('💵 Payment aayi',s.got,'− ','hk-k2-got')}
       ${s.gave?row('💸 Party ko diye',s.gave,'+ '):''}
-      ${verdict(p.name,s.now,'Aaj tak')}
-      ${s.running?verdict(p.name,s.all,'Ban rahe orders ke baad'):''}
+      ${verdict(p.name,s.all,'Kul baqaya')}
+      ${s.running>=1?`<div class="hk-k2-note">🛠 Is mein <b>${fmtRs(s.running)}</b> ke ${s.runList.length} order abhi ban rahe hain (diye nahi). Diye hue maal ka hisaab: <b>${s.now>=0?fmtRs(s.now):'aap ne dene '+fmtRs(-s.now)}</b></div>`:''}
       ${s.runList.length?`<div class="hk-k2-list">${s.runList.map(o=>`<span>${esc(o.orderNo||'')} · ${fmtRs(o.orderTotal)} · ${esc(o.status||'pending')}</span>`).join('')}</div>`:''}
       <div class="hk-k2-btns">
         <button class="btn btn-success btn-sm" onclick="openReceivePaymentModal(${p.id})">💵 Payment aayi — khate mein daalein</button>

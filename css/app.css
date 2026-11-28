@@ -799,3 +799,13 @@ body.dark-mode .hk-k3-tile.aaye,body.dark-mode .hk-k3-status.saaf{background:#0f
 /* Parties list balance line */
 .hk-pl-line{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:6px;font-size:11.5px;font-weight:700;}
 .hk-pl-line.lene{color:#b91c1c;}.hk-pl-line.dene{color:#1d4ed8;}.hk-pl-line.saaf{color:#15803d;}
+/* Khata rows on phone + note */
+.hk-lrows{display:flex;flex-direction:column;}
+.hk-lrow{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border);font-size:12px;}
+.hk-lrow-l small,.hk-lrow-r small{display:block;font-size:10.5px;color:var(--gray-500);}
+.hk-lrow-r{text-align:right;}
+.hk-lrow-r span{display:block;font-weight:800;}
+.hk-lrow-r .p{color:#b91c1c;}.hk-lrow-r .m{color:#15803d;}
+.hk-lrow-x{grid-column:1/-1;text-align:right;}
+.hk-k2-note{margin-top:8px;font-size:11.5px;padding:8px 10px;border-radius:10px;background:#f5f3ff;color:#4c1d95;}
+body.dark-mode .hk-k2-note{background:#25183f;color:#ddd6fe;}
